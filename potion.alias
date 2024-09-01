@@ -613,7 +613,10 @@ for t_arg, [target] in t_uniq:
                 ef_dur = dur
             if 'd' in ef_dur:
                 # Dice roll, show it
-                existing_ef = target.get_effect(ef_name)
+                if target != ch:
+                    existing_ef = target.get_effect(ef_name)
+                else:
+                    existing_ef = None
                 if existing_ef:
                     existing_dur = existing_ef.duration
                     ef_dur_roll = vroll(f'({ef_dur},{existing_dur})kh1')
@@ -634,7 +637,10 @@ for t_arg, [target] in t_uniq:
                 # But not shown if it's standard duration.
                 results.append(f'Duration: {ef_dur_s} rounds{extra}')
             else:
-                existing_ef = target.get_effect(ef_name)
+                if target != ch:
+                    existing_ef = target.get_effect(ef_name)
+                else:
+                    existing_ef = None
                 if existing_ef:
                     existing_dur = existing_ef.duration
                     ef_dur_roll = vroll(f'({ef_dur},{existing_dur})kh1')

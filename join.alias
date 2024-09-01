@@ -1,0 +1,12 @@
+<drac2>
+ch = character()
+cmd = ch.get_cvar('join','i join')
+args = &ARGS&
+if args and args[0]:
+    loc = args[0].upper()
+else:
+    loc = ''
+cmd = cmd.replace('%LOC%', loc)
+return cmd
+</drac2>
+-color <color>

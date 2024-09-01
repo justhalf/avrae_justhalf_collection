@@ -1,0 +1,8 @@
+embed
+-title "<name>'s Ability Scores"
+-desc "{{f"**STR** {strength} ({strengthMod:+d})"}} | {{f"**INT** {intelligence} ({intelligenceMod:+d})"}}
+{{f"**DEX** {dexterity} ({dexterityMod:+d})"}} | {{f"**WIS** {wisdom} ({wisdomMod:+d})"}}
+{{f"**CON** {constitution} ({constitutionMod:+d})"}} | {{f"**CHA** {charisma} ({charismaMod:+d})"}}"
+-color <color>
+-thumb <image>
+-footer "!scores"

@@ -1,0 +1,179 @@
+<drac2>
+al_name = 'fall'
+footer = f'!{al_name} ? | Manage your fall!'
+
+using(jh='65a30ab9-540c-4bdf-86ce-7af4760604a9')
+jh.setup(
+        al_name=al_name,
+        footer=footer,
+        )
+
+ch = character()
+
+args = &ARGS&
+
+# Alias begins here
+title = 'Manage your fall!'
+desc=(f'Manage fall damage and height on OTFBM map.\n\n'
+      f'__Usage__:\n'
+      f'`!{al_name} <fall_distance> -t <target> (-t <target>)* (-nomap)`\n'
+      f'* Make the targetted combatants take fall damage according to the specified fall distance.\n'
+      f'* If fall distance is not specified, the fall distance will be based on the __height__ of each '
+      f'combatant according to the OTFBM map.\n'
+      f'* Each combatant height on the map will be reduced by the fall distance.\n'
+      f'* If `-nomap` is provided, the combatants\' height on the map will not be changed.\n\n'
+      f'`!{al_name} -t <target>|<fall_distance> (-t <target>|<fall_distance>)* (-nomap)`\n'
+      f'* You can also specify different fall distance for each target.\n\n'
+      f'__Examples__:\n'
+      f'`!{al_name} 30 -t 1Sliver -t 2Harpy`\n'
+      f'* The standard usage. 1Sliver and 2Harpy will each take 3d6 bludgeoning damage (rolled separately).\n'
+      f'`!{al_name} 30 -t Sacross -t Trellum|60 -t Gar -nomap`\n'
+      f'* Sacross and Gar will take 3d6 damage, Trellum will take 6d6 damage. '
+      f'Their heights on the map are unchanged, since we provide `-nomap`.')
+
+if not args or args[0] in ['?', 'help']:
+    return jh.embed(
+        title=title,
+        desc=desc,
+        f_thumb=None,
+        )
+
+try:
+    dist = int(args[0])
+    args = args[1:]
+except:
+    dist = None
+
+args = argparse(args)
+
+targets = args.get('t', []) or []
+use_map = not bool(args.last('nomap', False))
+
+# if not targets:
+#     return jh.embed(
+#         title=title,
+#         desc=desc,
+#         fields=[{'title':'No targets specified!','body':'You need to specify at least one target with `-t`'}],
+#         f_thumb=None,
+#         )
+
+uniq, mult, none = jh.resolve_targets(targets)
+warns = []
+if mult:
+    mult_s = '\n* '.join(['']+[f'{t_arg.split("|")[0]}: '+', '.join(m.name for m in ms) for t_arg, ms in mult])
+    warns.append({'title':':warning: Ambiguous Targets', 'body':f'These targets have multiple matches:{mult_s}'})
+if none:
+    none_s = '\n* '.join(['']+[t_arg.split('|')[0] for t_arg, _ in none])
+    warns.append({'title':':warning: Targets not Found', 'body':f'These targets are not found:{none_s}'})
+
+if warns:
+    return jh.embed(
+        title=f'Manage your fall!',
+        desc='There are some errors below. No falling damage has been applied.',
+        fields=warns,
+        f_thumb=None,
+        )
+
+desc_l = [
+        (f'At the end of a fall, a creature takes 1d6 bludgeoning damage for every 10 feet it fell, to a maximum '
+         f'of 20d6. The creature lands prone, unless it avoids taking damage from the fall.\n\n'
+         f'General arguments:'),
+        ]
+if dist is None:
+    desc_l.append((f'No generic falling distance specified, will use the individual falling distance from '
+                   f'`-t <target>|<distance>` of each target.'))
+    if use_map:
+        desc_l.append((f'No `-nomap` specified, targets without a specified individual falling distance will use '
+                       f'the targets\' heights on the map as the falling distance.'))
+    else:
+        desc_l.append((f'Map not used (`-nomap`), targets without a specified individual falling distance will use '
+                       f'0 as the falling distance.'))
+else:
+    desc_l.append(f'Falling distance: {dist} ft.')
+    desc_l.append(f'Damage: {min(dist//10,20)}d6 [bludgeoning]')
+if use_map:
+    desc_l.append(f'Will update heights on map.')
+else:
+    desc_l.append(f'Will not update heights on map. (`-nomap`)')
+
+warns_l = []
+fs = []
+for t_arg, [target] in uniq:
+    t, arg = (t_arg.split('|', maxsplit=1)+[None])[:2]
+    if use_map:
+        map_params = [p.split(': ') for p in target.note.split(' | ') if p]
+        height = None
+        new_height = None
+        for param in map_params:
+            if len(param) != 2:
+                # Not map params
+                continue
+            k, v = param
+            if k == 'Height':
+                try:
+                    height = int(v)
+                except:
+                    height = 0
+        if height is None:
+            map_params.append(['Height', '0'])
+            height = 0
+    try:
+        c_dist = int(arg)
+        use_default = False
+        dist_s = f'Falling distance (override): __{c_dist} ft.__'
+    except:
+        c_dist = dist
+        if c_dist is None:
+            if use_map:
+                if height >= 0:
+                    c_dist = height
+                    dist_s = f'Falling distance (from map): __{c_dist} ft.__'
+                else:
+                    dist_s = f'Falling distance (from map): __max(0, {height}) = 0 ft.__'
+                    c_dist = 0
+            else:
+                c_dist = 0
+                dist_s = f'Falling distance (unspecified): __{c_dist} ft.__'
+        else:
+            dist_s = f'Falling distance (default): __{c_dist} ft.__'
+        if arg is not None:
+            warns_l.append(f'In "{t_arg}", "{arg}" is not a valid distance')
+    if use_map:
+        for param in map_params:
+            if len(param) != 2:
+                # Not map params
+                continue
+            k, _ = param
+            if k == 'Height':
+                new_height = height-c_dist
+                param[1] = str(new_height)
+        target.set_note(' | '.join(': '.join(param) for param in map_params
+                                   if param and (param[0] != 'Height' or int(param[1])!=0)))
+        if height != new_height:
+            map_s = f'\nUpdated height on map from {height} to {new_height} ft.'
+        else:
+            map_s = f'\nNo change of height in map.'
+    else:
+        map_s = ''
+    if target.resistances.is_resistant('magical bludgeoning'):
+        dmg_r = vroll(f'{min(c_dist//10,20)}d6//2')
+    else:
+        dmg_r = vroll(f'{min(c_dist//10,20)}d6')
+    dmg_s = f'**Damage**: {dmg_r} [falling bludgeoning]'
+    hp_str = target.modify_hp(-dmg_r.total)
+    hp_str = f'{target.name} {hp_str} (-{dmg_r.total})'
+    fs.append({'title':hp_str, 'body':f'{dist_s}\n{dmg_s}{map_s}'})
+if len(fs) == 1:
+    title = f'{uniq[0][1][0].name} fell!'
+else:
+    title = f'Some creatures fell!'
+if warns_l:
+    warns_f = {'title':'Warning', 'body':'\n* '.join(['']+warns_l)}
+    fs.append(warns_f)
+return jh.embed(
+    title=title,
+    desc='\n* '.join(desc_l),
+    fields=fs,
+    f_thumb=None,
+    )
+</drac2>

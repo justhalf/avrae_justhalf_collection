@@ -1,0 +1,283 @@
+# GVAR: 65a30ab9-540c-4bdf-86ce-7af4760604a9
+# Module: jh (justhalf_utilities)
+# A collection of common tasks, functions, libraries, and constants for aliases
+#
+# LIB: a collection of gvar addresses for common libraries
+#   embed: for embed tools (also available as jh.emb)
+#   baglib: for bag management
+#   datetime: for common date processing
+#   notelib: for !note processing
+#   maplib: for interacting with OTFBM maps
+# 
+# C: some constants:
+#   'al_name'
+#   'ch_color'
+#   'ch_image'
+#   'ch_name'
+#   'footer'
+#
+# DEF_ARGS: list of arguments
+#
+# setup(alias_name, footer=None):
+#   sets up the configuration for other utility functions such as embed's footer
+#
+# embed(title=None, desc='', fields={}, timeout=0,
+#       f_footer=True, f_color=True, f_thumb=True,
+#       image=None, as_obj=False):
+#   output an embed string.
+#   f_footer, f_color, f_thumb: when True, use default values, can also be specified
+#       to specify custom footer, color, and thumbnail for that specific call
+#   as_obj: when True, return the embed as object instead of string. Can be converted into string with
+#       `jh.emb.get_output(embed_out)`
+
+using(emb='72fea181-ba03-4cb4-8edf-1f3bc5a49578')
+AL_NAME = 'al_name'
+CH_COLOR = 'ch_color'
+CH_IMAGE = 'ch_image'
+CH_NAME = 'ch_name'
+FOOTER = 'footer'
+C = {
+    AL_NAME: None,
+    CH_COLOR: None,
+    CH_IMAGE: None,
+    CH_NAME: None,
+    FOOTER: None,
+    }
+
+LIB = {
+    'embed': '72fea181-ba03-4cb4-8edf-1f3bc5a49578',
+    'baglib': '4119d62e-6a98-4153-bea9-0a99bb36da2c',
+    'datetime': 'daeedde7-2ae9-4c92-9924-091d763ce6f3',
+    'notelib': 'e566d79c-3f15-4853-a5ac-e93dcfd95e04',
+    'maplib': '43a980ab-fcae-4baa-9d66-260b2b0d8672',
+    'dicelib': '32d70259-223e-4fe1-8303-dbaa8189e859',
+    'sublib': '9f664e12-57e2-451b-9792-a733625b2e6b',
+    }
+
+DEF_ARGS = {
+    'attack': {
+        '-t': True,
+        '-rr': True,
+        'adv': False,
+        'dis': False,
+        'eadv': False,
+        'hit': False,
+        'miss': False,
+        '-attackroll': True,
+        'attackmin': True,
+        'crit': False,
+        '-ac': True,
+        '-b': True,
+        '-criton': True,
+        'pass': False,
+        'fail': False,
+        'sadv': False,
+        'sdis': False,
+        '-dc': True,
+        '-sb': True,
+        '-save': True,
+        'max': False,
+        'nocrit': False,
+        '-d': True,
+        '-c': True,
+        '-mi': True,
+        'savage': False,
+        '-cantripdice': True,
+        '-critdice': True,
+        'magical': False,
+        'silvered': False,
+        '-dtype': True,
+        '-resist': True,
+        '-immune': True,
+        '-vuln': True,
+        '-neutral': True,
+        '-dur': True,
+        '-amt': True,
+        '-l': True,
+        '-i': False,
+        '-ability': True,
+        '-cb': True,
+        '-mc': True,
+        '-cdc': True,
+        'cadv': False,
+        'cdis': False,
+        'cpass': False,
+        'cfail': False,
+        '-selfability': True,
+        '-selfcb': True,
+        'selfcadv': False,
+        'selfcdis': False,
+        '-selfmc': True,
+        '-choice': True,
+        '-h': False,
+        '-phrase': True,
+        '-title': True,
+        '-f': True,
+        '-thumb': True,
+        }
+    }
+
+def setup(al_name=None, footer=None):
+    """Sets up this alias library.
+    
+    This sets up:
+    - Alias name
+    - Footer
+    - Character name
+    - Character color (from csettings)
+    - Character thumbnail
+    """
+    ch = character()
+
+    if al_name is None:
+        al_name = ctx.alias
+    C[AL_NAME] = al_name
+    C[CH_COLOR] = ch.csettings.get('color', None)
+    if C[CH_COLOR] is not None:
+        C[CH_COLOR] = f'#{C[CH_COLOR]:X}'
+    else:
+        C[CH_COLOR] = ''
+    C[CH_IMAGE] = ch.image
+    if combat() and combat().me:
+        C[CH_NAME] = combat().me.name
+    else:
+        C[CH_NAME] = ch.name
+    if footer is None:
+        C[FOOTER] = f'{ctx.prefix}{al_name} ? | by justhalf'
+    else:
+        C[FOOTER] = footer
+    return al_name
+
+def embed(title=None, desc='', fields=[], timeout=0,
+          f_footer=True, f_color=True, f_thumb=True,
+          image=None, as_obj=False):
+    """A shortcut for embed function, with automatic footer, color, and thumbnail.
+    
+    Will also remove invalid fields from the `field` argument.
+    """
+    ch = character()
+    if title is None:
+        title = f'{ch.name} uses the alias {C[AL_NAME]}'
+    fields = [f for f in fields if f is not None]
+    embed_out = {
+        'title': title,
+        'desc': desc,
+        'fields': fields,
+        'timeout': timeout,
+        }
+
+    if f_footer == True:
+        embed_out['footer'] = C[FOOTER]
+    elif f_footer:
+        embed_out['footer'] = f_footer
+
+    if f_color == True:
+        embed_out['color'] = C[CH_COLOR]
+    elif f_color:
+        embed_out['color'] = f_color
+
+    if f_thumb == True:
+        embed_out['thumb'] = C[CH_IMAGE]
+    elif f_thumb:
+        embed_out['thumb'] = f_thumb
+
+    if image:
+        embed_out['image'] = image
+
+    if as_obj:
+        return embed_out
+    return emb.get_output(embed_out)
+
+def ch_name(force_actual=False):
+    """Returns current character name. If in combat, use the name in combat.
+
+    If `force_actual` is True, then always use actual character name instead of combat name.
+    """
+    if force_actual:
+        return character().name
+    return C[CH_NAME]
+
+def resolve_targets(targets):
+    """Resolves the target names into combatant objects.
+    
+    Returns three lists:
+    1. Targets with unique combatant found (or exact match)
+    2. Targets with ambiguous name (multiple matches)
+    3. Targets with no matching combatant
+    Each list will be in the form of (target_arg, combatant_list)
+    Total number of items across the three lists will equal total number of targets specified.
+
+    If not in combat, will return empty lists for all three
+    """
+    uniq, mult, none = [], [], []
+    co = combat()
+    if not co:
+        return uniq, mult, none
+    for t_arg in targets:
+        t, _ = (t_arg.split('|', maxsplit=1)+[None])[:2]
+        matches = []
+        for comb in co.combatants:
+            if t.lower() == comb.name.lower():
+                # Exact match, ignore everything else
+                matches = [comb]
+                break
+            if t.lower() in comb.name.lower():
+                matches.append(comb)
+        if len(matches) == 1:
+            uniq.append((t_arg, matches))
+        elif len(matches) > 1:
+            mult.append((t_arg, matches))
+        else:
+            none.append((t_arg, matches))
+    return uniq, mult, none
+
+def take_args(args, keys={}):
+    """Take the specified args as a dictionary of arg_name to a boolean whether the arg is taking the next argument
+    or not. The boolean can also be replaced with a non-empty string, indicating the prefix of the next argument that
+    should be taken as the value for the argument.
+
+    Returns (key_args, leftover)
+
+    key_args: is a mapping from arg_name into the actual arg (if taking argument; as list if specified multiple times) 
+    or an integer (the number of times that argument appear).
+        If arg_name is mapped to a non-empty string, it will try to match the next argument with this as a prefix.
+        If it matches, it is taken as an argument.
+        For example, `'-oil': 'oil'` will return `{'-oil': ['oilCold', True]}` to the input `-oil oilCold -oil burn`.
+    leftover: is an array for the untaken args.
+
+    For example: take_args(['slap', '-t', 'Lion', 'adv', '-choice', 'pierce', '-h'], {'-t':True, '-h':False}) will
+    remove "-t target" and "-h" from the args, leaving the rest as ['slap', 'adv', '-choice', 'pierce'].
+    The returned dictionary will be: {'-t': ['target'], '-h': 1} for this case
+    All arg_name specified are guaranteed to be found in the returned values.
+    """
+    key_args = {}
+    idx = 0
+    while idx < len(args):
+        arg = args[idx]
+        if arg not in keys:
+            idx += 1
+            continue
+        if keys[arg]:
+            if arg not in key_args:
+                key_args[arg] = []
+            if idx+1 < len(args):
+                if keys[arg] == True or args[idx+1].startswith(keys[arg]):
+                    key_args[arg].append(args[idx+1])
+                else:
+                    key_args[arg].append(True)
+                args = args[:idx]+args[idx+2:]
+            else:
+                key_args[arg].append(True)
+                args = args[:idx]
+        else:
+            if arg not in key_args:
+                key_args[arg] = 0
+            key_args[arg] += 1
+            args = args[:idx]+args[idx+1:]
+    for k, v in keys.items():
+        if k not in key_args:
+            if v == False:
+                key_args[k] = 0
+            else:
+                key_args[k] = []
+    return (key_args, args)

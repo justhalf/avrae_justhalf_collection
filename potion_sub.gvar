@@ -1,0 +1,30 @@
+# GVAR: hidden-gvar-address
+# Module: potsub (justhalf collection - potion sub - private)
+# Provides the function for the various `!potion sub <source>` sub alias
+
+sources = {
+        'GS': ('hidden-gvar-address', '''Griffon's Saddlebag'''),
+        'BR': ('0990d563-9217-4faf-ac46-4f72dc9159b7', '''Basic Rules (2014)'''),
+        'DMG': ('hidden-gvar-address', '''Dungeon Master's Guide (2014)'''),
+        'EGtW': ('hidden-gvar-address', '''Explorer's Guide to Wildemount'''),
+        'MOoT': ('hidden-gvar-address', '''Mythic Odysseys of Theros'''),
+        'PBTSO': ('hidden-gvar-address', '''Phandelver and Below: The Shattered Obelisk'''),
+        'PotA': ('hidden-gvar-address', '''Princes of the Apocalypse'''),
+        'TftYP': ('hidden-gvar-address', '''Tales from the Yawning Portal'''),
+        'TWBtW': ('hidden-gvar-address', '''The Wild Beyond the Witchlight'''),
+        'XGtE': ('hidden-gvar-address', '''Xanathar's Guide to Everything'''),
+        }
+for key, (gvar, name) in list(sources.items()):
+    sources[key] = {'gvar':gvar, 'name':name}
+
+def sub(source=None, args=[]):
+    using(sublib='9f664e12-57e2-451b-9792-a733625b2e6b')
+    sublib.setup(
+        base_name='potion',
+        sub_name='sub',
+        unsub_name='unsub',
+        default_var='subbed_potions',
+        default_subs={sources['BR']['gvar']: {'source':'BR', 'name':sources['BR']['name']}},
+        sources=sources,
+        )
+    return sublib.alias_sub(source=source, args=args)

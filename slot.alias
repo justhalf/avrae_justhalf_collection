@@ -1,0 +1,276 @@
+<drac2>
+al_name = 'slot'
+footer = f'!{al_name} ? | Enter Ravenloft item slot manager'
+
+using(jh='65a30ab9-540c-4bdf-86ce-7af4760604a9')
+jh.setup(
+        al_name=al_name,
+        footer=footer,
+        )
+
+COINS_PREFIXES = {'cp':'<:DDBCopper:953399505129205830>',
+                  'sp':'<:DDBSilver:953399505124995122>',
+                  'ep':'<:DDBElectrum:953399505129205831>',
+                  'gp':'<:DDBGold:953399505062080594>',
+                  'pp':'<:DDBPlatinum:953399504739106847>'}
+
+SLOT_NAMES = [
+    'Head',
+    'Headband',
+    'Eyes',
+    'Shoulders',
+    'Neck',
+    'Chest',
+    'Body',
+    'Armor',
+    'Belt',
+    'Wrists',
+    'Hands',
+    'Ring 1',
+    'Ring 2',
+    'Feet',
+    ]
+
+# Constants and common variables
+ch = character()
+bag_prefix_cvar = 'bagItemPrefixes'
+mod_bag_cvar = 'slotModifyBag'
+check_bag_cvar = 'slotCheckBag'
+slot_config = 'slotConfig'
+
+def save_prefix(item_prefix):
+    for coin, emoji in COINS_PREFIXES.items():
+        if coin not in item_prefix:
+            item_prefix[coin] = emoji
+    ch.set_cvar(bag_prefix_cvar, dump_json(item_prefix))
+
+def fmt(slot):
+    return f'[__{slot}__]'
+
+slot_bag_name = fmt('Slots')
+unslot_bag_name = fmt('Unslotted')
+slotted = {fmt(slot_name):'' for slot_name in SLOT_NAMES}
+
+try:
+    mod_bag = load_json(ch.get_cvar(mod_bag_cvar, False))
+except:
+    mod_bag = False
+
+try:
+    check_bag = load_json(ch.get_cvar(check_bag_cvar, True))
+except:
+    check_bag = True
+
+args = &ARGS&
+
+if args and args[0] and args[0] in ['?', 'help']:
+    return jh.embed(
+        title=f'{ch.name} checks their equipment slot manual!',
+        desc=f'This helps you manage your equipment slots, to help ensure you only have one item per slot.',
+        fields=[
+            {'title':f'Usage',
+             'body':(
+                 f'`!{al_name}`\n'
+                 f'* Call it without any argument to show your current list of slots.\n\n'
+                 f'`!{al_name} <slotname> <itemname>`\n'
+                 f'* Equips the given item name into the given slot, overriding existing item in that slot.\n'
+                 f'* For `Ring 1` and `Ring 2`, the slot name is without space: `ring1` and `ring2`.\n\n'
+                 f'`!{al_name} remove <slotname>`\n'
+                 f'* Removes currently equipped item in the given slot.'
+                 ),
+             },
+            {'title':f'Config CVar',
+             'body':(
+                 f'`!cvar {check_bag_cvar} (true|false)`\n'
+                 f'* By default, this alias checks whether the item is present in your bag. To disable this check, '
+                 f'you can set the cvar `{check_bag_cvar}` to `false`\n'
+                 f'* To enable it again, remove the cvar: `!cvar remove {check_bag_cvar}` or set it to `true`\n'
+                 f'* If you disable this, the item name shown will be whatever you typed into the `!{al_name}`\n\n'
+                 f'`!cvar {mod_bag_cvar} (true|false)`\n'
+                 f'* By default, this alias does not move items around in your bag. '
+                 f'To enable automatic bag management, you can set the cvar `{mod_bag_cvar}` to `true`\n'
+                 f'* To disable it again, remove the cvar: `!cvar remove {mod_bag_cvar}` or set it to `false`'
+                 ),
+             },
+            {'title':f'Examples',
+             'body':(
+                 f'To add ring of water walking to your Ring 1 slot, do:\n'
+                 f'`!slot ring1 ring water walk`\n'
+                 f'This assumes you have "Ring of Water Walking" in your bag, or that you set '
+                 f'`!cvar slotModifyBag false` and `!cvar slotCheckBag false`.\n'
+                 f'It can read item names with spaces in them as well, no need quotes.\n\n'
+                 f'To remove a previously equipped circlet of blasting from Head slot, do:\n'
+                 f'`!slot remove head`\n'
+                 f'(yes, it reads funny)'
+                 ),
+             },
+            ],
+        )
+
+using(bl=jh.LIB['baglib'])
+bags = bl.load_bags()
+slot_bag = bl.get_bag(bags, slot_bag_name, exact_match=True, create_on_fail=True)
+unslot_bag = bl.get_bag(bags, unslot_bag_name, exact_match=True, create_on_fail=True)
+bags_noslot = [v for v in bags if v[0] not in [slot_bag_name, unslot_bag_name]]
+
+try:
+    item_prefix = load_json(ch.get_cvar(bag_prefix_cvar, '{}'))
+except:
+    item_prefix = {}
+
+def canon_name(*item):
+    baglist = [slot_bag, unslot_bag] + bags_noslot
+    for bag_name, bag in baglist:
+        for item_name in bag:
+            if ' '.join(item).lower() == item_name.lower():
+                return item_name
+    for bag_name, bag in baglist:
+        for item_name in bag:
+            if all(i.lower() in item_name.lower() for i in item):
+                return item_name
+    return None
+
+warns = []
+
+def f_warn():
+    if not warns:
+        return []
+    result = {
+            'title':'\u26A0\uFE0F Warning \u26A0\uFE0F',
+            'body': '\n'.join(warns),
+            }
+    return [result]
+
+for item, prefix in item_prefix.items():
+    if prefix not in slotted:
+        continue
+    item_name = canon_name(item)
+    if not check_bag and not item_name:
+        item_name = item
+    if item_name is None:
+        warns.append(f'* Slotted item {prefix} {item} cannot be found in bag, ignored.')
+        continue
+    slotted[prefix] = item_name
+
+def disp_slots():
+    items = [f'{slot_name} - {item_name if item_name else "*empty*"}' for slot_name, item_name in slotted.items()]
+    return '\n'.join(items)
+
+if not args:
+    return jh.embed(
+        title=f'{ch.name} checks their equipment slots!',
+        desc=f'Below are the items equipped in each slot:\n{disp_slots()}',
+        fields=f_warn(),
+        )
+
+if args[0] == 'remove':
+    if len(args) < 2:
+        return jh.embed(
+            title=f'{ch.name} failed to remove an equipment from their slot! \u274C',
+            desc=(
+                f'Need to specify the slot name!\n'
+                f'**Usage**:\n'
+                f'`!{al_name} remove <slotname>`'
+                ),
+            )
+    slot_name = args[1]
+    matches = []
+    exact_match = None
+    for slot in SLOT_NAMES:
+        if slot_name.lower() in [slot.lower(), slot.lower().replace(' ', '')]:
+            exact_match = slot
+        if slot_name.lower() in slot.lower().replace(' ', ''):
+            matches.append(slot)
+    if exact_match:
+        slot_name = fmt(exact_match)
+    elif len(matches) == 1:
+        slot_name = fmt(matches[0])
+    elif len(matches) > 1:
+        matches_s = '\n'.join(f'* {slot}' for slot in matches)
+        return jh.embed(
+            title=f'{ch.name} failed to remove an equipment from their slot! \u274C',
+            desc=f'There are multiple matches for `{slot_name}`:\n{matches_s}',
+            )
+    else:
+        return jh.embed(
+            title=f'{ch.name} failed to remove an equipment from their slot! \u274C',
+            desc=f'There are no slots matching `{slot_name}`',
+            )
+    removed_item = slotted[slot_name]
+    slotted[slot_name] = ''
+    item_prefix = {k:v for k,v in item_prefix.items() if v != slot_name}
+    save_prefix(item_prefix)
+    if mod_bag:
+        bl.modify_item([slot_bag], removed_item, -1)
+        bl.modify_item([unslot_bag], removed_item, 1)
+        bl.save_bags(bags)
+    return jh.embed(
+        title=f'{ch.name} removed an equipment from a slot! \u2705',
+        desc=f'The item "{removed_item}" was removed from the slot {slot_name}',
+        )
+else:
+    if len(args) < 2:
+        return jh.embed(
+            title=f'{ch.name} failed to add an equipment into their slot! \u274C',
+            desc=(
+                f'Need to specify the slot name and item name!\n'
+                f'**Usage**:\n'
+                f'`!{al_name} <slotname> <itemname>`'
+                ),
+            )
+    slot_name = args[0]
+    item_name = args[1:]
+    matches = []
+    exact_match = None
+    for slot in SLOT_NAMES:
+        if slot_name.lower() in [slot.lower(), slot.lower().replace(' ', '')]:
+            exact_match = slot
+        if slot_name.lower() in slot.lower().replace(' ', ''):
+            matches.append(slot)
+    if exact_match:
+        slot_name = fmt(exact_match)
+    elif len(matches) == 1:
+        slot_name = fmt(matches[0])
+    elif len(matches) > 1:
+        matches_s = '\n'.join(f'* {slot}' for slot in matches)
+        return jh.embed(
+            title=f'{ch.name} failed to add an equipment into their slot! \u274C',
+            desc=f'There are multiple matches for `{slot_name}`:\n{matches_s}',
+            )
+    else:
+        return jh.embed(
+            title=f'{ch.name} failed to add an equipment into their slot! \u274C',
+            desc=f'There are no slots matching `{slot_name}`',
+            )
+    previous_item = slotted[slot_name]
+    if previous_item:
+        prev_s = f'The previously equipped item was unequipped: {previous_item}\n'
+        if mod_bag:
+            bl.modify_item([slot_bag], previous_item, -1)
+            bl.modify_item([unslot_bag], previous_item, 1)
+    else:
+        prev_s = ''
+
+    cur_item = canon_name(*item_name) 
+    if not check_bag and not cur_item:
+        cur_item = ' '.join(item_name)
+    if not cur_item:
+        return jh.embed(
+            title=f'{ch.name} failed to add an equipment into their slot! \u274C',
+            desc=f'The item "{" ".join(item_name)}" is not found in your bag',
+            )
+    slotted[slot_name] = cur_item
+    item_prefix = {k:v for k,v in item_prefix.items() if v != slot_name}
+    item_prefix[cur_item.lower()] = slot_name
+    save_prefix(item_prefix)
+    if mod_bag:
+        bl.modify_item(bags_noslot+[unslot_bag, slot_bag], cur_item, -1)
+        bl.modify_item([slot_bag], cur_item, 1)
+        bl.save_bags(bags)
+    return jh.embed(
+        title=f'{ch.name} added an equipment into their slot! \u2705',
+        desc=f'{prev_s}The item "{cur_item}" has been put into slot {slot_name}.',
+        )
+
+</drac2>
+

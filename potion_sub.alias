@@ -1,0 +1,5 @@
+<drac2>
+args = &ARGS&
+using(potsub='hidden-gvar-address')
+return potsub.sub(args=args)
+</drac2>

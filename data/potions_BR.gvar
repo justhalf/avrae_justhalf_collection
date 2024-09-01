@@ -1,0 +1,853 @@
+[
+    {
+        "name": "Antitoxin (vial)",
+        "description": "A creature that drinks this vial of liquid gains advantage on saving throws against poison for 1 hour. It confers no benefit to undead or constructs.",
+        "help": "The advantage against poison needs to be done manually. Either by rerolling, or passing `sadv` when targetting this creature for poison effects.",
+        "automation": [
+            {
+                "type": "ieffect2",
+                "name": "Antitoxin",
+                "desc": "Advantage on saving throws against poison",
+                "duration": "600"
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Oil of Etherealness",
+        "description": "Beads of this cloudy gray oil form on the outside of its container and quickly evaporate. The oil can cover a Medium or smaller creature, along with the equipment it's wearing and carrying (one additional vial is required for each size category above Medium). Applying the oil takes 10 minutes. The affected creature then gains the effect of the **__etherealness__** spell for 1 hour.",
+        "automation": [
+            {
+                "type": "ieffect2",
+                "name": "Etherealness",
+                "desc": "You are ethereal. See the spell **Etherealness** for the details.",
+                "duration": "600"
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Oil of Slipperiness",
+        "description": "This sticky black unguent is thick and heavy in the container, but it flows quickly when poured. The oil can cover a Medium or smaller creature, along with the equipment it's wearing and carrying (one additional vial is required for each size category above Medium). Applying the oil takes 10 minutes. The affected creature then gains the effect of a **__freedom of movement__** spell for 8 hours.\n\nAlternatively, the oil can be poured on the ground as an action, where it covers a 10-foot square, duplicating the effect of the **__grease__** spell in that area for 8 hours.",
+        "help": "You must choose `-choice freedom` or `-choice grease` when you use this potion. For Grease option, you will gain an action `Grease` that you can immediately use to do the saving throws for the creatures affected by the spell.",
+        "showHelp": false,
+        "automation": "178d8d31-19a3-4a28-a880-ed064a363cf3",
+        "source": "BR"
+    },
+    {
+        "name": "Philter of Love",
+        "description": "The next time you see a creature within 10 minutes after drinking this philter, you become charmed by that creature for 1 hour. If the creature is of a species and gender you are normally attracted to, you regard it as your true love while you are charmed.\n\nThis potion's rose-hued, effervescent liquid contains one easy-to-miss bubble shaped like a heart.",
+        "help": "After drinking this potion, you will get a new action `\"True Love\"`, which you can target on the first creature you see. This will make you be charmed by that creature.",
+        "automation": "95624802-b819-46e2-8e8d-ba39dccf2dfe",
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Animal Friendship",
+        "description": "When you drink this potion, you can cast the **__animal friendship__** spell (save DC 13) for 1 hour at will.\n\nAgitating this muddy liquid brings little bits into view: a fish scale, a hummingbird tongue, a cat claw, or a squirrel hair.",
+        "automation": "b7addfbe-82e0-4133-8bda-7317df620485",
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Mind Reading",
+        "description": "When you drink this potion, you gain the effect of the **__detect thoughts__** spell (save DC 13).\n\nThe potion's dense, purple liquid has an ovoid cloud of pink floating in it.",
+        "automation": "9ecf2d83-ea09-4746-be23-9175d6fa6d4b",
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Gaseous Form",
+        "description": "When you drink this potion, you gain the effect of the **__gaseous form__** spell for 1 hour (no concentration required) or until you end the effect as a bonus action.\n\nThis potion's container seems to hold fog that moves and pours like water.",
+        "automation": [
+            {
+                "type": "ieffect2",
+                "name": "Potion of Gaseous Form",
+                "desc": "You turn into a misty cloud\n - Your only speed is 10 ft flying (hover), can pass through creatures and small cracks\n - Resistance to nonmagical damage, adv on Str, Dex, Con saves\n - Can't talk, attack, cast spells, or manipulate objects",
+                "duration": "100",
+                "effects": {
+                    "resistances": [
+                        "nonmagical bludgeoning",
+                        "nonmagical piercing",
+                        "nonmagical slashing"
+                    ],
+                    "save_adv": [
+                        "strength",
+                        "dexterity",
+                        "constitution"
+                    ]
+                }
+            },
+            {
+                "type": "text",
+                "title": "Gaseous Form",
+                "text": "You transform a willing creature you touch, along with everything it's wearing and carrying, into a misty cloud for the duration. The spell ends if the creature drops to 0 hit points. An incorporeal creature isn't affected.\n\nWhile in this form, the target's only method of movement is a flying speed of 10 feet. The target can enter and occupy the space of another creature. The target has resistance to nonmagical damage, and it has advantage on Strength, Dexterity, and Constitution saving throws. The target can pass through small holes, narrow openings, and even mere cracks, though it treats liquids as though they were solid surfaces. The target can't fall and remains hovering in the air even when stunned or otherwise incapacitated.\n\nWhile in the form of a misty cloud, the target can't talk or manipulate objects, and any objects it was carrying or holding can't be dropped, used, or otherwise interacted with. The target can't attack or cast spells."
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Clairvoyance",
+        "description": "When you drink this potion, you gain the effect of the **__clairvoyance__** spell.\n\nAn eyeball bobs in this yellowish liquid but vanishes when the potion is opened.",
+        "automation": [
+            {
+                "type": "ieffect2",
+                "name": "Potion of Clairvoyance",
+                "desc": "You can see OR hear through the magical sensor you create by this spell",
+                "duration": "100",
+                "conc": true
+            },
+            {
+                "type": "text",
+                "title": "Clairvoyance",
+                "text": "You create an invisible sensor within range in a location familiar to you (a place you have visited or seen before) or in an obvious location that is unfamiliar to you (such as behind a door, around a corner, or in a grove of trees). The sensor remains in place for the duration, and it can't be attacked or otherwise interacted with.\n\nWhen you cast the spell, you choose seeing or hearing. You can use the chosen sense through the sensor as if you were in its space. As your action, you can switch between seeing and hearing.\n\nA creature that can see the sensor (such as a creature benefiting from **see invisibility** or truesight) sees a luminous, intangible orb about the size of your fist."
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Climbing",
+        "description": "When you drink this potion, you gain a climbing speed equal to your walking speed for 1 hour. During this time, you have advantage on Strength (Athletics) checks you make to climb.\n\nThe potion is separated into brown, silver, and gray layers resembling bands of stone. Shaking the bottle fails to mix the colors.",
+        "automation": [
+            {
+                "type": "ieffect2",
+                "name": "Potion of Climbing",
+                "desc": "You gain climbing speed equal to your walking speed\n - You have advantage on Strength (Athletics) checks for climbing",
+                "duration": "600"
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Flying",
+        "description": "When you drink this potion, you gain a flying speed equal to your walking speed for 1 hour and can hover. If you're in the air when the potion wears off, you fall unless you have some other means of staying aloft.\n\nThis potion's clear liquid floats at the top of its container and has cloudy white impurities drifting in it.",
+        "automation": [
+            {
+                "type": "ieffect2",
+                "name": "Potion of Flying",
+                "desc": "You gain flying speed equal to your walking speed and can hover\n - You fall when the potion wears off",
+                "duration": "600"
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Growth",
+        "description": "When you drink this potion, you gain the \"enlarge\" effect of the **__enlarge/reduce__** spell for 1d4 hours (no concentration required).\n\nThe red in the potion's liquid continuously expands from a tiny bead to color the clear liquid around it and then contracts. Shaking the bottle fails to interrupt this process.",
+        "help": "The 1d4 extra damage is not automatic by default. Please use the snippet `grow` to add the bonus damage to your applicable attacks.\nIf you prefer, you can rerun the alias with `-choice damage` to automatically apply the 1d4 extra damage to all damage rolls. Note that this will include spell attack rolls, healing, etc.",
+        "showHelp": false,
+        "automation": "413aa379-7232-43fa-bd67-522a1ba09761",
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Diminution",
+        "description": "When you drink this potion, you gain the \"reduce\" effect of the **__enlarge/reduce__** spell for 1d4 hours (no concentration required).\n\nThe red in the potion's liquid continuously expands from a tiny bead to color the clear liquid around it and then contracts. Shaking the bottle fails to interrupt this process.",
+        "help": "The 1d4 damage reduction is not automatic by default. Please use the snippet `shrink` to reduce the damage of your applicable attacks.\n If you prefer, you can rerun the alias with `-choice damage` to automatically apply the 1d4 damage reduction to all damage rolls. Note that this will include spell attack rolls, healing, etc.",
+        "showHelp": false,
+        "automation": "91e8dba7-db3b-40bd-b938-004e3efd8f60",
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Hill Giant Strength",
+        "description": "When you drink this potion, your Strength score changes to 21 for 1 hour. The potion has no effect on you if your Strength is equal to or greater than that score.\n\nThis potion's transparent liquid has floating in it a sliver of fingernail from a hill giant.",
+        "help": "Avrae automations and aliases cannot change a combatant's ability scores, so this potion effect is just a reminder for the duration. It is recommended to update your Strength score on your character sheet and then update it to Avrae. But, if you really prefer, you can use `-choice damage` to apply bonuses to attack and damage rolls (this will affect **__all__** damage rolls, not just Strength, and this includes healing rolls too)",
+        "showHelp": false,
+        "automation": [
+            {
+                "type": "condition",
+                "condition": "choice in \"\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Hill Giant Strength (Potion)",
+                                "duration": "600",
+                                "desc": "Your strength becomes 21 if it is lower without this effect."
+                            }
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "text": "Note that this effect does nothing, and only serves as a reminder of its duration. It is recommended to temporarily update your character sheet to set the Strength score to 21 to apply the to hit and damage bonus properly. If you prefer, you can also rerun this alias with `-choice damage` to apply the bonuses to attack and damage rolls (this will affect **__all__** damage rolls, not just Strength, and this includes healing rolls too)",
+                        "title": "Avrae Tips :bulb:"
+                    }
+                ],
+                "onFalse": []
+            },
+            {
+                "type": "condition",
+                "condition": "choice in \"damage\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Hill Giant Strength (Potion)",
+                                "duration": "600",
+                                "desc": "Your strength becomes 21 if it is lower without this effect.",
+                                "effects": {
+                                    "to_hit_bonus": "{SB(21)}",
+                                    "damage_bonus": "{SB(21)}"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "text": "Automatic attack and damage rolls are applied due to `-choice damage`. Please make sure to adjust the rolls in cases where the bonuses should not apply.",
+                        "title": "Avrae Tips :bulb:"
+                    }
+                ],
+                "onFalse": []
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Frost/Stone Giant Strength",
+        "description": "When you drink this potion, your Strength score changes to 23 for 1 hour. The potion has no effect on you if your Strength is equal to or greater than that score.\n\nThis potion's transparent liquid has floating in it a sliver of fingernail from a frost/stone giant.",
+        "help": "Avrae automations and aliases cannot change a combatant's ability scores, so this potion effect is just a reminder for the duration. It is recommended to update your Strength score on your character sheet and then update it to Avrae. But, if you really prefer, you can use `-choice damage` to apply bonuses to attack and damage rolls (this will affect **__all__** damage rolls, not just Strength, and this includes healing rolls too)",
+        "automation": [
+            {
+                "type": "condition",
+                "condition": "choice in \"\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Frost/Stone Giant Strength (Potion)",
+                                "duration": "600",
+                                "desc": "Your strength becomes 23 if it is lower without this effect."
+                            }
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "text": "Note that this effect does nothing, and only serves as a reminder of its duration. It is recommended to temporarily update your character sheet to set the Strength score to 23 to apply the to hit and damage bonus properly. If you prefer, you can also rerun this alias with `-choice damage` to apply the bonuses to attack and damage rolls (this will affect **__all__** damage rolls, not just Strength, and this includes healing rolls too)",
+                        "title": "Avrae Tips :bulb:"
+                    }
+                ],
+                "onFalse": []
+            },
+            {
+                "type": "condition",
+                "condition": "choice in \"damage\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Frost/Stone Giant Strength (Potion)",
+                                "duration": "600",
+                                "desc": "Your strength becomes 23 if it is lower without this effect.",
+                                "effects": {
+                                    "to_hit_bonus": "{SB(23)}",
+                                    "damage_bonus": "{SB(23)}"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "text": "Automatic attack and damage rolls are applied due to `-choice damage`. Please make sure to adjust the rolls in cases where the bonuses should not apply.",
+                        "title": "Avrae Tips :bulb:"
+                    }
+                ],
+                "onFalse": []
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Fire Giant Strength",
+        "description": "When you drink this potion, your Strength score changes to 25 for 1 hour. The potion has no effect on you if your Strength is equal to or greater than that score.\n\nThis potion's transparent liquid has floating in it a sliver of fingernail from a fire giant.",
+        "help": "Avrae automations and aliases cannot change a combatant's ability scores, so this potion effect is just a reminder for the duration. It is recommended to update your Strength score on your character sheet and then update it to Avrae. But, if you really prefer, you can use `-choice damage` to apply bonuses to attack and damage rolls (this will affect **__all__** damage rolls, not just Strength, and this includes healing rolls too)",
+        "automation": [
+            {
+                "type": "condition",
+                "condition": "choice in \"\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Fire Giant Strength (Potion)",
+                                "duration": "600",
+                                "desc": "Your strength becomes 25 if it is lower without this effect."
+                            }
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "text": "Note that this effect does nothing, and only serves as a reminder of its duration. It is recommended to temporarily update your character sheet to set the Strength score to 25 to apply the to hit and damage bonus properly. If you prefer, you can also rerun this alias with `-choice damage` to apply the bonuses to attack and damage rolls (this will affect **__all__** damage rolls, not just Strength, and this includes healing rolls too)",
+                        "title": "Avrae Tips :bulb:"
+                    }
+                ],
+                "onFalse": []
+            },
+            {
+                "type": "condition",
+                "condition": "choice in \"damage\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Fire Giant Strength (Potion)",
+                                "duration": "600",
+                                "desc": "Your strength becomes 25 if it is lower without this effect.",
+                                "effects": {
+                                    "to_hit_bonus": "{SB(25)}",
+                                    "damage_bonus": "{SB(25)}"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "text": "Automatic attack and damage rolls are applied due to `-choice damage`. Please make sure to adjust the rolls in cases where the bonuses should not apply.",
+                        "title": "Avrae Tips :bulb:"
+                    }
+                ],
+                "onFalse": []
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Cloud Giant Strength",
+        "description": "When you drink this potion, your Strength score changes to 27 for 1 hour. The potion has no effect on you if your Strength is equal to or greater than that score.\n\nThis potion's transparent liquid has floating in it a sliver of fingernail from a cloud giant.",
+        "help": "Avrae automations and aliases cannot change a combatant's ability scores, so this potion effect is just a reminder for the duration. It is recommended to update your Strength score on your character sheet and then update it to Avrae. But, if you really prefer, you can use `-choice damage` to apply bonuses to attack and damage rolls (this will affect **__all__** damage rolls, not just Strength, and this includes healing rolls too)",
+        "automation": [
+            {
+                "type": "condition",
+                "condition": "choice in \"\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Cloud Giant Strength (Potion)",
+                                "duration": "600",
+                                "desc": "Your strength becomes 27 if it is lower without this effect."
+                            }
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "text": "Note that this effect does nothing, and only serves as a reminder of its duration. It is recommended to temporarily update your character sheet to set the Strength score to 27 to apply the to hit and damage bonus properly. If you prefer, you can also rerun this alias with `-choice damage` to apply the bonuses to attack and damage rolls (this will affect **__all__** damage rolls, not just Strength, and this includes healing rolls too)",
+                        "title": "Avrae Tips :bulb:"
+                    }
+                ],
+                "onFalse": []
+            },
+            {
+                "type": "condition",
+                "condition": "choice in \"damage\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Cloud Giant Strength (Potion)",
+                                "duration": "600",
+                                "desc": "Your strength becomes 27 if it is lower without this effect.",
+                                "effects": {
+                                    "to_hit_bonus": "{SB(27)}",
+                                    "damage_bonus": "{SB(27)}"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "text": "Automatic attack and damage rolls are applied due to `-choice damage`. Please make sure to adjust the rolls in cases where the bonuses should not apply.",
+                        "title": "Avrae Tips :bulb:"
+                    }
+                ],
+                "onFalse": []
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Heroism",
+        "description": "For 1 hour after drinking it, you gain 10 temporary hit points that last for 1 hour. For the same duration, you are under the effect of the bless spell (no concentration required).\n\nThis blue potion bubbles and steams as if boiling.",
+        "automation": [
+            {
+                "type": "ieffect2",
+                "name": "Blessed",
+                "desc": "Add 1d4 to attack rolls and saving throws",
+                "duration": "600",
+                "effects": {
+                    "save_bonus": "1d4 [bless]",
+                    "to_hit_bonus": "1d4 [bless]"
+                }
+            },
+            {
+                "type": "temphp",
+                "amount": "10"
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Vitality",
+        "description": "When you drink this potion, it removes any exhaustion you are suffering and cures any disease or poison affecting you. For the next 24 hours, you regain the maximum number of hit points for any Hit Die you spend.\n\nThe potion's crimson liquid regularly pulses with dull light, calling to mind a heartbeat.",
+        "help": "The exhaustion is automatically removed, but not the removal of disease or poisoned conditions. You will need to remove them manually! For maximizing heal from Hit Dice, most automations will accept `max` argument to maximize the healing.",
+        "automation": [
+            {
+                "type": "ieffect2",
+                "name": "Potion of Vitality",
+                "desc": "You regain the maximum number of hit points for any Hit Die you spend",
+                "duration": "14400"
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Invisibility",
+        "description": "This potion's container looks empty but feels as though it holds liquid. When you drink it, you become invisible for 1 hour. Anything you wear or carry is invisible with you. The effect ends early if you attack or cast a spell.",
+        "help": "As with any other source of invisible condition, Avrae will just automate the advantage part. You need to manually apply the disadvantage part.",
+        "automation": [
+            {
+                "type": "ieffect2",
+                "name": "Invisible",
+                "desc": "Ends if you attack or cast a spell\n - Unseen unaided by magic or special sense. Heavily obscured for the purpose of hiding. Can still be heard and leave marks\n - Attack rolls against the creature have disadvantage, and the creature's attack rolls have advantage.",
+                "duration": "600",
+                "effects": {
+                    "attack_advantage": 1
+                }
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Resistance",
+        "description": "When you drink this potion, you gain resistance to one type of damage for 1 hour.",
+        "help": "You must choose the type of damage via `-choice <damage type>`",
+        "showHelp": false,
+        "automation": [
+            {
+                "type": "condition",
+                "condition": "choice in \"Bludgeoning\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Potion of Resistance (Bludgeoning)",
+                                "duration": "600",
+                                "effects": {
+                                    "resistances": [
+                                        "bludgeoning"
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "onFalse": []
+            },
+            {
+                "type": "condition",
+                "condition": "choice in \"Piercing\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Potion of Resistance (Piercing)",
+                                "duration": "600",
+                                "effects": {
+                                    "resistances": [
+                                        "piercing"
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "onFalse": []
+            },
+            {
+                "type": "condition",
+                "condition": "choice in \"Slashing\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Potion of Resistance (Slashing)",
+                                "duration": "600",
+                                "effects": {
+                                    "resistances": [
+                                        "Slashing"
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "onFalse": []
+            },
+            {
+                "type": "condition",
+                "condition": "choice in \"Acid\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Potion of Resistance (Acid)",
+                                "duration": "600",
+                                "effects": {
+                                    "resistances": [
+                                        "acid"
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "onFalse": []
+            },
+            {
+                "type": "condition",
+                "condition": "choice in \"Cold\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Potion of Resistance (Cold)",
+                                "duration": "600",
+                                "effects": {
+                                    "resistances": [
+                                        "cold"
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "onFalse": []
+            },
+            {
+                "type": "condition",
+                "condition": "choice in \"Fire\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Potion of Resistance (Fire)",
+                                "duration": "600",
+                                "effects": {
+                                    "resistances": [
+                                        "fire"
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "onFalse": []
+            },
+            {
+                "type": "condition",
+                "condition": "choice in \"Force\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Potion of Resistance (Force)",
+                                "duration": "600",
+                                "effects": {
+                                    "resistances": [
+                                        "force"
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "onFalse": []
+            },
+            {
+                "type": "condition",
+                "condition": "choice in \"Lightning\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Potion of Resistance (Lightning)",
+                                "duration": "600",
+                                "effects": {
+                                    "resistances": [
+                                        "lightning"
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "onFalse": []
+            },
+            {
+                "type": "condition",
+                "condition": "choice in \"Necrotic\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Potion of Resistance (Necrotic)",
+                                "duration": "600",
+                                "effects": {
+                                    "resistances": [
+                                        "necrotic"
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "onFalse": []
+            },
+            {
+                "type": "condition",
+                "condition": "choice in \"Poison\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Potion of Resistance (Poison)",
+                                "duration": "600",
+                                "effects": {
+                                    "resistances": [
+                                        "poison"
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "onFalse": []
+            },
+            {
+                "type": "condition",
+                "condition": "choice in \"Psychic\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Potion of Resistance (Psychic)",
+                                "duration": "600",
+                                "effects": {
+                                    "resistances": [
+                                        "psychic"
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "onFalse": []
+            },
+            {
+                "type": "condition",
+                "condition": "choice in \"Radiant\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Potion of Resistance (Radiant)",
+                                "duration": "600",
+                                "effects": {
+                                    "resistances": [
+                                        "radiant"
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "onFalse": []
+            },
+            {
+                "type": "condition",
+                "condition": "choice in \"Thunder\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Potion of Resistance (Thunder)",
+                                "duration": "600",
+                                "effects": {
+                                    "resistances": [
+                                        "thunder"
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "onFalse": []
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Speed",
+        "description": "When you drink this potion, you gain the effect of the haste spell for 1 minute (no concentration required).\n\nThe potion's yellow fluid is streaked with black and swirls on its own.",
+        "automation": [
+            {
+                "type": "ieffect2",
+                "name": "Hasted",
+                "desc": "You gain an additional action\n - Your speed is doubled\n - AC+2\n - Advantage on Dexterity saves",
+                "duration": "10",
+                "effects": {
+                    "ac_bonus": "2",
+                    "save_adv": [
+                        "dexterity"
+                    ]
+                }
+            },
+            {
+                "type": "text",
+                "text": "Until the spell ends, the target's speed is doubled, it gains a +2 bonus to AC, it has advantage on Dexterity saving throws, and it gains an additional action on each of its turns. That action can be used only to take the Attack (one weapon attack only), Dash, Disengage, Hide, or Use an Object action.\n\nWhen the spell ends, the target can't move or take actions until after its next turn, as a wave of lethargy sweeps over it.",
+                "title": "Potion of Speed"
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Waterbreathing",
+        "description": "You can breathe underwater for 1 hour after drinking this potion.\n\nIts cloudy green fluid smells of the sea and has a jellyfish-like bubble floating in it.",
+        "automation": [
+            {
+                "type": "ieffect2",
+                "name": "Potion of Waterbreathing",
+                "desc": "You can breathe underwater",
+                "duration": "600"
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Healing",
+        "aliases": [
+            "heal",
+            "healing",
+            "common"
+        ],
+        "description": "You regain 2d4 + 2 hit points when you drink this potion.\n\nThe potion's red liquid glimmers when agitated.",
+        "help": "Common tip: you can use `-rr 3` to drink 3 potions of healing at once!",
+        "automation": [
+            {
+                "type": "damage",
+                "damage": "-(2d4+2) [heal]"
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Greater Healing",
+        "aliases": [
+            "greater"
+        ],
+        "description": "You regain 4d4 + 4 hit points when you drink this potion.\n\nThe potion's red liquid glimmers when agitated.",
+        "help": "Greater tip: you can use `-rr 3` to drink 3 potions of healing at once!",
+        "automation": [
+            {
+                "type": "damage",
+                "damage": "-(4d4+4) [heal]"
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Superior Healing",
+        "aliases": [
+            "superior"
+        ],
+        "description": "You regain 8d4 + 8 hit points when you drink this potion.\n\nThe potion's red liquid glimmers when agitated.",
+        "help": "Superior tip: you can use `-rr 3` to drink 3 potions of healing at once!",
+        "automation": [
+            {
+                "type": "damage",
+                "damage": "-(8d4+8) [heal]"
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Supreme Healing",
+        "aliases": [
+            "supreme"
+        ],
+        "description": "You regain 10d4 + 20 hit points when you drink this potion.\n\nThe potion's red liquid glimmers when agitated.",
+        "help": "Supreme tip: you can use `-rr 3` to drink 3 potions of healing at once!",
+        "automation": [
+            {
+                "type": "damage",
+                "damage": "-(10d4+20) [heal]"
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Poison",
+        "description": "This concoction looks, smells, and tastes like a potion of healing or other beneficial potion. However, it is actually poison masked by illusion magic. An identify spell reveals its true nature.\n\nIf you drink it, you take 3d6 poison damage, and you must succeed on a DC 13 Constitution saving throw or be poisoned. At the start of each of your turns while you are poisoned in this way, you take 3d6 poison damage. At the end of each of your turns, you can repeat the saving throw. On a successful save, the poison damage you take on your subsequent turns decreases by 1d6. The poison ends when the damage decreases to 0.",
+        "automation": "39ce9d3f-840c-4dab-b13c-420bfc68c284",
+        "source": "BR"
+    }
+]

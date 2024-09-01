@@ -1,0 +1,313 @@
+<drac2>
+candies = {
+           1: ('Spoiled Candy', 'No candy for you!', {'desc':'No effect'}),
+           2: ('Hot Tamales', 'Spicy cinnamon flavored candies leave your mouth on fire!', {
+               'effect': {
+                   'desc': 'As a replacement of one of your attacks, you can spit out a 15 ft. cube up to 30 ft. away. DC 13 Dex save for 2d6 fire damage on fail, or half on success.',
+                   'attacks': [{'attack':{
+                       'name': 'Fire Belch',
+                       '_v': 2,
+                       'proper': True,
+                       'verb': 'attacks with',
+                       'activation_type': 1,
+                       'automation': [
+                           {
+                               'type': 'roll',
+                               'name': 'damage',
+                               'dice': '2d6',
+                               'displayName': 'Damage',
+                               'hidden': False
+                           },
+                           {
+                               'type': 'target',
+                               'target': 'all',
+                               'effects': [
+                                   {
+                                       'type': 'save',
+                                       'stat': 'dex',
+                                       'fail': [
+                                           {
+                                               'type': 'damage',
+                                               'damage': '{damage} [fire]',
+                                           }
+                                           ],
+                                       'success': [
+                                           {
+                                               'type': 'damage',
+                                               'damage': '{damage}/2 [fire]',
+                                           }
+                                           ],
+                                       'dc': 13,
+                                   }
+                                   ]
+                           },
+                           {
+                               'type': 'text',
+                               'text': 'When you take the Attack action on your turn, you can replace one of your attacks with a spit of a glob of fire to a 15-foot cube within 30 feet of you. Each creature in the area must make a DC 13 Dexterity save. On failure, the creature takes 2d6 fire damage, or half of that on success.',
+                               'title': 'Effect',
+                           }
+                           ]
+                       }}
+                       ]
+                   }
+               }),
+           3: ('Pixie Stix', 'Wax tubes filled with pure flavored sugar!', {
+               'effect':{'desc':'Speed +15 feet'},
+               }),
+           4: ('Jawbreaker', 'Super hard sucking candy', {
+               'effect':{'desc':'Gains +2 AC',
+                         'passive_effects':{'ac_bonus':2},
+                        }
+               }),
+           5: ('Sticky Caramel', 'Super sticky caramel toffee!', {
+               'effect':{'desc':'Has climb speed equal to walking speed\n - Attacks with melee weapons set target speed to 0 for 1 minute with action to scrape off',
+                     'attacks':[{'attack':{
+                         'name': 'Sticky Grapple',
+                         '_v': 2,
+                         'proper': True,
+                         'verb': 'applies',
+                         'activation_type': 2,
+                         'phrase': 'Ew, sticky!',
+                         'automation': [
+                             {
+                                 'type': 'target',
+                                 'target': 'all',
+                                 'effects': [
+                                     {
+                                         'type': 'ieffect2',
+                                         'name': 'Grappled (Sticky Caramel)',
+                                         'tick_on_caster': True,
+                                         'buttons': [
+                                             {
+                                                 'label': 'Scrape Caramel',
+                                                 'automation': [
+                                                     {
+                                                         'type': 'target',
+                                                         'target': 'self',
+                                                         'effects': [
+                                                             {
+                                                                 'type': 'remove_ieffect'
+                                                                 },
+                                                             {
+                                                                 'type': 'text',
+                                                                 'text': '{caster.name} is no longer covered in caramel and can move normally again.',
+                                                                 'title': 'Effect'
+                                                                 }
+                                                             ]
+                                                         }
+                                                     ],
+                                                 'verb': 'scrapes off the sticky caramel',
+                                                 'style': '1',
+                                                 }
+                                             ],
+                                         'desc': 'Grappled by a sticky caramel candy.'
+                                         }
+                                     ]
+                             },
+                             {
+                                 'type': 'text',
+                                 'text': 'When you hit with a melee attack or ranged attack with a thrown weapon, the target is covered in sticky caramel for 1 minute or until the target or another creature uses its action to scrape or wash the caramel off the target. A creature covered in the caramel has their speed set to 0, and it can\'t benefit from any bonus to its speed.',
+                                 'title': 'Sticky Caramel'
+                             }
+                             ],
+                         }}]
+                    },
+               }),
+           6: ('Healthy Snack', 'What is this?! Fruits & veggies??', {
+               'desc': 'Heals for 2d6 HP. Half of any overflow is converted into THP',
+               'heal': '2d6',
+               }),
+           7: ('Laffy taffy', 'Fruity, chewy and stretchy!', {
+               'effect':{'desc':'Reach for melee attacks +15 ft.\n - Walking speed +5 ft.'},
+               }),
+           8: ('Sweet Chocolate', 'This delectable treat makes you feel like you can do anything!', {
+               'effect':{'desc':'Can cast spell as BA,\n - OR IF CANNOT CAST: Gets a Cunning Action,\n - OR IF ALREADY HAS CA: Gets a second BA (though no more than 1 offhand attack can be made)'},
+               }),
+           9: ('Starburst', 'This sweet gummy treat us radiating with yummy goodness!', {
+               'effect':{'desc':('Shines a 10 ft radius bright light. DC 13 Con save or blinded for chosen targets '
+                                 'who starts turn or first enters the area.'),
+                         'attacks':[{'attack':{
+                                   'name': 'Starburst Candy',
+                                   '_v': 2,
+                                   'proper': True,
+                                   'verb': 'shines brightly from',
+                                   'activation_type': 2,
+                                   'automation': [
+                                       {
+                                           'type': 'target',
+                                           'target': 'all',
+                                           'effects': [
+                                               {
+                                                   'type': 'save',
+                                                   'stat': 'con',
+                                                   'fail': [
+                                                       {
+                                                          'type': 'ieffect2',
+                                                          'name': 'Blinded (Starburst)',
+                                                          'duration': '1',
+                                                          'end': True,
+                                                          'desc': 'Cannot see, dis when attacking, adv when attacked.'
+                                                       }
+                                                       ],
+                                                   'success': [],
+                                                   'dc': 13,
+                                               }
+                                               ]
+                                       },
+                                       {
+                                           'type': 'text',
+                                           'text': ('Any chosen creature who starts turn or first enters within 10 ft of you '
+                                                    'needs to do DC 13 Con saving throw or be blinded until the end of their turn.'),
+                                           'title': 'Effect',
+                                       }
+                                   ]
+                             }}]
+                        },
+               }),
+           10:('Warheads', 'Super sour candy! MAKES YOU ANGRY!!', {
+               'effect':{'desc':'Resistance to BPS (magical and mundane)\n - Gets +2 to damage rolls (please add `-d 2` to your attacks)',
+                         'passive_effects':{'resistances':['bludgeoning','piercing','slashing']},
+                        }
+               }),
+          }
+footer = ['!candy help | !candy list | Enter Ravenloft random candy generator']
+char = character()
+args = &ARGS&
+if len(args) and args[0] in ['?','help']:
+    return (f'embed -title "Grab a random candy!" -desc "Generates a random candy for each of the specified target. '
+            f'Will apply the appropriate effects accordingly. Some candies give additional attacks, which you can '
+            f'use as an attack normally." '
+            f'-f "Usage|`!candy (candyId) (-t [target])* (-rr N) (-h)`\n'
+            f'All fields optional. If candyId (1-10) is not specified, will roll, if specified, will use it.\n'
+            f'If no targets are specified, will give the candy to the current combatant (if in combat) or active character (if not in combat).\n'
+            f'If targets are specified, will give the candy to each of the target __instead of__ current character.\n'
+            f'The extra effects are only available when you run this alias in a combat thread.\n'
+            f'You can specify the same target multiple times to take multiple candies for that target, or use `-rr`.\n'
+            f'Specify `-h` to hide the candy descriptions (health changes and effects are still applied)" '
+            f'-f "Examples|`!candy` -> roll a candy for the current combatant\n'
+            f'`!candy 6` -> give candy 6 to the current combatant\n'
+            f'`!candy -t ZO` -> roll a candy for ZO\n'
+            f'`!candy 10 -t SU -h` -> give candy 10 to SU, hiding the descriptions\n'
+            f'`!candy -t ZO|2 -t SU` -> give candy 2 to ZO, roll a candy for SU\n'
+            f'`!candy -t QU -t QU -t QU` -> roll 3 candies for QU\n'
+            f'`!candy -t QU -t ZO -rr 2` -> roll 2 candies each for QU and ZO" '
+            f'-footer "{footer[0]}"')
+if len(args) and args[0] == 'list':
+    fs = []
+    for val, (candy, desc, effect) in candies.items():
+        f_desc = ''
+        if 'desc' in effect:
+            f_desc = effect['desc']
+        elif 'effect' in effect:
+            if 'desc' in effect['effect']:
+                f_desc = effect['effect']['desc']
+        f_desc = f_desc.replace('\n -','\n*')
+        fs.append(f'-f "{val}: {candy}|{desc}\n* {f_desc}"')
+    return (f'embed -title "List of Candies" -desc "Any effects the candies give last until the start of your next turn." '
+            f'{" ".join(fs)} -footer "{footer[0]}"')
+if combat():
+    default_combatant = combat().current
+    if default_combatant.type == 'group':
+        default_combatant = default_combatant.combatants[0]
+    targets = [(t, combat().get_combatant(t.split('|')[0])) for t in argparse(args).get('t',[default_combatant.name])]
+    has_valid_target = False
+    for _, target in targets:
+        if target:
+            has_valid_target = True
+            break
+    if not has_valid_target:
+        return (f'embed -title "Failed to determine the targets!" -desc "The targets are not found in combat." '
+                f'-footer "{footer[0]}"')
+else:
+    targets = [(char.name, char)]
+ddef = None
+if len(args) and not args[0].startswith('-'):
+    try:
+        ddef = int(args[0])
+        if not (1 <= ddef <= 10):
+            if len(targets) > 1:
+                name = 'Targets'
+            else: # len(targets) == 1
+                name = targets[0][1].name
+            return (f'embed -title "{name} attempted to take a non-existent candy!" '
+                    f'-f "Error|{args[0]} is not a valid candy number. Only candies 1-10 exist." '
+                    f'-footer "{footer[0]}"')
+    except:
+        pass
+args = argparse(args)
+hidden = args.last('h',False)
+try:
+    rr = int(args.last('rr', '1'))
+except:
+    rr = 1
+if rr*len(targets) > 12:
+    return (f'embed -title "Too many candy attempts!" -desc "There are too many number of targets and/or iterations. '
+            f'Try reducing the number of targets or iterations, or split them into multiple command calls."')
+ds = []
+fs = []
+for t, target in targets:
+    for it in range(rr):
+        roll_str = '1d10 = '
+        if ddef:
+            d = ddef
+            roll_str = 'Given: '
+        elif '|' in t:
+            try:
+                d = int(t.split('|')[1])
+                roll_str = f'Given for {target.name}: '
+            except:
+                d = roll('1d10')
+        else:
+            d = roll('1d10')
+        if not target:
+            fs.append(f'-f "{t} Roll|Target \\"{t.split("|")[0]}\\" not found in combat!"')
+            continue
+        ds.append(d)
+        candy, text, effect = candies[d]
+        desc = ''
+        if 'effect' in effect:
+            if combat():
+                if hidden:
+                    target.add_effect(candy, duration=1, end=False, **effect['effect'], desc='')
+                else:
+                    target.add_effect(candy, duration=1, end=False, **effect['effect'])
+            if 'desc' in effect['effect']:
+                desc = '\n* '+effect['effect']['desc'].replace('\n -','\n*')
+            if combat():
+                desc += f'\n\nEffect {candy} added to {target.name} [until start of next turn]'
+        elif 'heal' in effect:
+            if combat():
+                heal_amt = roll(effect['heal'])
+                hp_heal = min(target.max_hp-target.hp, heal_amt)
+                start_thp = target.temp_hp
+                thp_heal = max(0, heal_amt-hp_heal)//2
+                target.set_hp(target.hp+hp_heal)
+                target.set_temp_hp(max(target.temp_hp, thp_heal))
+                if thp_heal > 0:
+                    vroll_str = f'(({heal_amt}-{hp_heal})//2,{start_thp})kh1'
+                    desc = (f'\n{target.name} is healed for 2d6 ({heal_amt}) HP, half of the leftover is converted into THP!\n'
+                            f'__HP healed__: {hp_heal}\n__THP gained__: {vroll(vroll_str)}')
+                else:
+                    desc = (f'\n{target.name} is healed for 2d6 ({heal_amt}) HP!\n'
+                            f'__HP healed__: {hp_heal}')
+                footer.insert(-1,f'{target.name}: {target.hp_str()}(+{hp_heal})')
+            else:
+                desc = f'\nIn a combat, {target.name} would have been healed for 2d6 HP, and half of any leftover converted into THP.'
+        if hidden:
+            text = '*description hidden*'
+            desc = ''
+        f = f'-f "{target.name} Roll|{roll_str}{d}" -f "{target.name} got {candy}|{text}{desc}"'
+        fs.append(f)
+footer = '\n'.join(footer)
+if footer:
+    footer = f' -footer "{footer}"'
+else:
+    footer = ''
+if rr*len(targets) == 1:
+    return (f'embed -title "{targets[0][1].name} grabs a candy!" '
+            f'-f "Roll|{roll_str}{d}" '
+            f'-f "{candy}|{text}{desc}"{footer}')
+else:
+    return (f'embed -title "Targets each grabs a candy!" '
+            f'{" ".join(fs)}{footer}')
+</drac2>

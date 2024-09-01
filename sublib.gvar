@@ -1,0 +1,349 @@
+# GVAR: 9f664e12-57e2-451b-9792-a733625b2e6b
+# Module: sublib (justhalf collection)
+# Collection of helper functions for subscription management
+
+# The array storing warning messages
+warns = []
+# The array storing error messages
+errors = []
+
+config = {
+        'base_name': None,   # Alias base name
+        'sub_name': None,    # Name of the sub-alias handling subscription, typically "sub"
+        'unsub_name': None,  # Name of the sub-alias handling unsubscription, typically "unsub"
+        'default_var': None, # Default uvar/svar storing subscriptions data
+        'default_subs': {},  # Default subscription if not set
+        'sources': {},       # Available sources to subscribe to, as a dictionary from gvar to data
+        }
+
+user_data = {
+        'subbed_gvars': None,
+        }
+
+def setup(base_name, sub_name='sub', unsub_name='unsub', default_var=None, default_subs={}, sources={}):
+    """Sets up the subscription context, mainly the variable storing the subscriptions, and
+    the list of available sources to subscribe to
+    """
+    # Setup subscription context
+    config['base_name'] = base_name
+    config['sub_name'] = sub_name
+    config['unsub_name'] = unsub_name
+    if default_var is None:
+        default_var = f'subbed_{base_name}'
+    config['default_var'] = default_var
+    config['default_subs'] = default_subs
+    config['sources'] = sources
+
+    # Load user data
+    user_data['subbed_gvars'] = load_subs()
+
+def force_json(v, default):
+    """Returns a json object (string, list, dictionary) from the given value.
+
+    This returns a tuple, the second tells whether the input is a non-empty invalid JSON
+    """
+    try:
+        return load_json(v), False
+    except:
+        return default, bool(v)
+
+def load_subs(var=None, default_subs=None):
+    """Loads the user's subscriptions
+
+    Normal usage of this would not require any arguments. The arguments are for extra
+    subscription list in addition to the one already set in the config via `setup()`
+    """
+    if var is None:
+        var = config['default_var']
+    if default_subs is None:
+        default_subs = config['default_subs']
+    subbed_gvars = {}
+
+    # Default subscriptions are always subscribed to
+    if default_subs and typeof(default_subs) == 'SafeDict':
+        subbed_gvars.update(default_subs)
+
+    # Add server subscriptions, this may override server subscriptions
+    server_gvars, gvar_err = force_json(get_svar(var), {})
+    if gvar_err:
+        warns.append(f'The server `{var}` value is invalid. Contact your server admin')
+    else:
+        subbed_gvars.update(server_gvars)
+
+    # Add user subscriptions, this may override server subscriptions
+    user_gvars, gvar_err = force_json(get_uvar(var), {})
+    if gvar_err:
+        warns.append(f'Your `{var}` value is invalid. Please check the content')
+    else:
+        subbed_gvars.update(user_gvars)
+
+    return subbed_gvars
+
+def save_subs(subbed_gvars=None, var=None):
+    """Saves the subscription data
+    """
+    if subbed_gvars is None:
+        subbed_gvars = user_data['subbed_gvars']
+    if var is None:
+        var = config['default_var']
+
+    set_uvar(var, dump_json(subbed_gvars))
+
+def info_subs(subbed_gvars=None):
+    """Returns an array of subscription descriptions, to be joined by `\n* `
+    """
+    if subbed_gvars is None:
+        subbed_gvars = user_data['subbed_gvars']
+
+    subbed_info = []
+    for gvar in subbed_gvars:
+        if typeof(subbed_gvars) == 'SafeDict':
+            # Not assuming SafeDict, to be generic, accepting list as well
+            data = subbed_gvars[gvar]
+            source = data.get('source', None)
+            name = data.get('name', None)
+        else:
+            source = None
+            name = None
+
+        if name is None:
+            name_s = ''
+        else:
+            name_s = f'{name}, '
+
+        if source is None:
+            source_s = f'{gvar} - '
+        else:
+            source_s = f'{source} - '
+        disp_name = f'{source_s}{name_s}'
+
+        try:
+            n_pots = len(load_json(get_gvar(gvar)))
+        except:
+            n_pots = 0
+
+        subbed_info.append(f'{disp_name}{n_pots} potion{"s" if n_pots!=1 else ""}')
+    return subbed_info
+
+def add_sub(gvar, data={}, save=True, subbed_gvars=None):
+    """Adds a gvar, store it with optional data dictionary
+
+    The data dictionary can contain anything, typically name
+    """
+    if subbed_gvars is None:
+        subbed_gvars = user_data['subbed_gvars']
+
+    if gvar in subbed_gvars:
+        return False
+    subbed_gvars[gvar] = data.copy()
+    if save:
+        save_subs(subbed_gvars)
+    return True
+
+def remove_sub(query, subbed_gvars=None, in_gvar=False, in_name=False, save=True, strict=True):
+    """Remove a gvar from subscription, based on the source found in current subscriptions
+
+    in_gvar and in_name can be set to True to also search those fields
+    If strict is True, it will only remove a subscription if there is exactly one match.
+    If there are multiple matches when strict is True, it will return a list of matches without unsubbing.
+    """
+    if subbed_gvars is None:
+        subbed_gvars = user_data['subbed_gvars']
+
+    gvar = None
+    in_source = not in_gvar and not in_name
+    for key, data in subbed_gvars.items():
+        if ((in_source and query.lower() == data.get('source', '').lower()) or
+            (in_gvar and query.lower() == key) or
+            (in_name and query.lower() == data.get('name', '').lower())
+            ):
+            gvar = key
+            break
+    if not gvar:
+        for key, data in subbed_gvars.items():
+            if ((in_source and query.lower() in data.get('source', '').lower()) or
+                (in_gvar and query.lower() in key) or
+                (in_name and query.lower() in data.get('name', '').lower())
+                ):
+                gvar = key
+                break
+    if not gvar or gvar not in subbed_gvars:
+        return False
+    data = subbed_gvars.pop(gvar)
+    if save:
+        save_subs(subbed_gvars)
+    return data
+
+def source_to_data(source):
+    """Find the source in the source list and returns the full data about that source
+    """
+    sources = config['sources']
+    source = ([s for s in sources.keys() if source.lower() == s.lower()] +
+              [s for s in sources.keys() if source.lower() in s.lower()] +
+              [None])[0]
+    if source is None:
+        return (None, None)
+    return (source, sources[source])
+
+def alias_sub(source=None, args=[], as_obj=False):
+    base_name = config['base_name']
+    sub_name = config['sub_name']
+    unsub_name = config['unsub_name']
+
+    p_args = argparse(args)
+
+    if source is None:
+        # A call to `!{base_name} {sub_name}` plain
+        data = {}
+        if not args or args[0] in ['h', 'help']:
+            gvar = None
+            name = None
+        else:
+            gvar = args[0]
+            try:
+                _ = load_json(get_gvar(gvar))
+            except:
+                errors.append(f'Invalid gvar address or it contains invalid JSON: "{gvar}"')
+                gvar = None
+            name = p_args.last('name', None)
+            if name and typeof(name) == 'str':
+                data['name'] = name
+            disp_name = gvar
+            if name:
+                full_name = f'{name} - {gvar}'
+            else:
+                full_name = gvar
+
+        al_name = f'{base_name} {sub_name}'
+        footer = f'!{al_name} | Manage subscriptions for `!{base_name}` alias'
+    else:
+        # Sub-alias call `!{base_name} {sub_alias} {source}`
+        # Canonicalize the source
+        source, data = source_to_data(source)
+        gvar = data.pop('gvar')
+        data['source'] = source
+        name = data.get('name', None)
+        if name:
+            disp_name = name
+            full_name = f'{source} - {name}'
+        else:
+            disp_name = source
+            full_name = source
+
+        al_name = f'{base_name} {sub_name} {source.lower()}'
+        footer = f'!{al_name} | Subscribe to {disp_name} for `!{base_name}` alias'
+
+    using(jh='65a30ab9-540c-4bdf-86ce-7af4760604a9')
+    jh.setup(
+            al_name=al_name,
+            footer=footer,
+            )
+
+    # Alias begins here
+    fs = []
+    if gvar:
+        success = add_sub(gvar, data=data)
+        if success:
+            fs.append({'title': 'Action Log', 'body':f':white_check_mark: You are now subscribed to {full_name}'})
+        else:
+            fs.append({'title': 'Action Log', 'body':f'You are already subscribed to {full_name}!'})
+    subbed_info = info_subs()
+
+    subbed_info_s = '\n* '.join(['']+subbed_info)
+    errors_s = '\n* '.join(['']+errors)
+    warns_s = '\n* '.join(['']+warns)
+
+    if errors_s:
+        fs.append({'title':'Error :x:', 'body':errors_s})
+    if warns_s:
+        fs.append({'title':'Warning :warning:', 'body':warns_s})
+    if not gvar:
+        fs.append({'title':'__Usage__:',
+                   'body':(f'Subscribe to an existing source or a custom gvar.\n\n'
+                           f'`!{base_name} {sub_name} <source>`\n'
+                           f'* Subscribe to an existing source. See `!help {base_name} {sub_name}` for the list\n\n'
+                           f'`!{base_name} {sub_name} <gvar> (-name <name>)`\n'
+                           f'* Subscribe to a gvar, with optional `name` to associate with this gvar\n\n'
+                           f'See also `!{base_name} {unsub_name}` for unsubscribing.')})
+        desc = f'Your `!{base_name}` subscriptions:{subbed_info_s}'
+    else:
+        desc = (f'Your `!{base_name}` subscriptions:{subbed_info_s}\n\n'
+                f'You can subscribe more by running `!{base_name} {sub_name} <source>`.\n'
+                f'See a list of available sources by running `!help {base_name} {sub_name}`')
+
+    return jh.embed(
+            title=f'{ctx.author.display_name} Manages their `!{base_name}` Subscription',
+            desc=desc,
+            fields=fs,
+            f_thumb=None,
+            as_obj=as_obj,
+            )
+
+def alias_unsub(args, as_obj=False):
+    base_name = config['base_name']
+    sub_name = config['sub_name']
+    unsub_name = config['unsub_name']
+
+    al_name = f'{base_name} {unsub_name}'
+    footer = f'!{al_name} ? | Manage unsubscription for `!{base_name}` alias'
+
+    using(jh='65a30ab9-540c-4bdf-86ce-7af4760604a9')
+    jh.setup(
+            al_name=al_name,
+            footer=footer,
+            )
+
+    k_args, l_args = jh.take_args(args, {'-gvar':False, '-name':False})
+
+    # Alias begins here
+    fs = []
+    if not l_args or l_args[0] in ['?', 'h', 'help']:
+        # No arguments, display help and current subscriptions
+        did_something = False
+    else:
+        in_gvar = bool(k_args['-gvar'])
+        in_name = bool(k_args['-name'])
+        data = remove_sub(l_args[0], in_gvar=in_gvar, in_name=in_name)
+        if data == False:
+            fs.append({'title': 'Action Log',
+                       'body': f':x: Cannot remove subscription: you have no subscription source matching `{l_args[0]}`'})
+            did_something = False
+        else:
+            source = data.get('source', None)
+            name = data.get('name', None)
+            disp_s = source or name or l_args[0]
+            fs.append({'title': 'Action Log', 'body': f':broom: You have just unsubscribed from {name}'})
+            did_something = True
+
+    subbed_info = info_subs()
+    subbed_info_s = '\n* '.join(['']+subbed_info)
+    errors_s = '\n* '.join(['']+errors)
+    warns_s = '\n* '.join(['']+warns)
+
+    if errors_s:
+        fs.append({'title':'Error :x:', 'body':errors_s})
+    if warns_s:
+        fs.append({'title':'Warning :warning:', 'body':warns_s})
+
+    if not did_something:
+        fs.append({'title':'__Usage__:',
+                   'body':(f'Unsubscribe from one of your existing subscriptions.\n\n'
+                           f'`!{base_name} {unsub_name} <source or gvar or name> (gvar) (name)`\n'
+                           f'* Unsubscribe from one of your subscriptions matching the input.\n'
+                           f'  The input will be matched against sources if no additional arguments provided.\n'
+                           f'  By providing the argument `gvar` or `name`, it will __instead__ be matched against '
+                           f'gvar and name, respectively.\n\n'
+                           f'See also `!{base_name} {sub_name}` for subscribing.')})
+        desc = f'Your `!{base_name}` subscriptions:{subbed_info_s}'
+    else:
+        desc = (f'Your `!{base_name}` subscriptions:{subbed_info_s}\n\n'
+                f'You can subscribe more by running `!{base_name} {sub_name} <source>`.\n'
+                f'See a list of available sources by running `!help {base_name} {sub_name}`')
+
+    return jh.embed(
+            title=f'{ctx.author.display_name} Manages their `!{base_name}` Subscription',
+            desc=desc,
+            fields=fs,
+            f_thumb=None,
+            as_obj=as_obj,
+            )

@@ -1,0 +1,55 @@
+<drac2>
+al_name = 'vsformat'
+footer = f'!{al_name} ? | Update cvars for nicer !vsheet'
+
+using(jh='65a30ab9-540c-4bdf-86ce-7af4760604a9')
+jh.setup(
+        al_name=al_name,
+        footer=footer,
+        )
+
+ch = character()
+
+args = &ARGS&
+
+# Alias begins here
+cvars = {
+        'speed': 'Speed',
+        'pTools': 'Tools Proficiency',
+        'eTools': 'Tools Expertise',
+        'senses': 'Senses',
+        'languages': 'Languages',
+        'feats': 'Feats',
+        'magicItems': 'Magic Items',
+        'attunedItems': 'Attuned Items',
+        'fightingstyles': 'Fighting Styles',
+        'invocations': 'Warlock Invocations',
+        }
+
+def fmt(val, reset=False, force_split=False):
+    val = val.strip('\n\t *."').replace('\n* and', '').replace('\n* ', ', ')
+    if reset: return val
+    if not force_split and ',' not in val: return val
+    vals = [v.strip('\n\t *.') for v in val.split(',')]
+    if force_split:
+        vals += ['and']
+    return '\n* '.join(['']+vals).strip(', ')
+
+args = argparse(args)
+reset = args.last('reset') or False
+processed = []
+for cvar, title in cvars.items():
+    cur_val = ch.get_cvar(cvar) or None
+    if cur_val is None: continue
+    new_val = fmt(cur_val, reset=reset, force_split=cvar=='senses')
+    ch.set_cvar(cvar, new_val)
+    processed.append(f'{name} cvar: `{cvar}`')
+
+processed_s = '\n- '.join(['']+processed)
+return jh.embed(
+    title=f'Updated CVars for {"normal" if reset else "nicer"} vsheet!',
+    desc=(f'The following cvars have been updated:{processed_s}'),
+    )
+
+</drac2>
+

@@ -1,0 +1,23 @@
+multiline
+<drac2>
+op = "<"+"drac2"+">"
+cl = "<"+"/drac2"+">"
+bod= '''fs=load_json(get_uvar('wealthTmp','[]'));fs.append(f'-f "{character().name}\\\'s Wealth|{character().coinpurse}"');set_uvar('wealthTmp',dump_json(fs))'''
+bod2='''fs=load_json(get_uvar('wealthTmp','[]'));delete_uvar('wealthTmp')'''
+chars = get_uvar('wealth', None)
+title_desc = (f'-title "Flaunt your wealth!" '
+              f'-desc "This alias shows your characters wealth.\nList down your characters to be showcased in '
+              f'`!uvar wealth`, one name per line." ')
+
+if chars is None:
+    set_uvar('wealthTmp',dump_json([f'-f "{character().name}\\\'s Wealth|{character().coinpurse}"']))
+else:
+    chars = chars.split('\n')
+    rets = []
+    for char in chars:
+        rets.append(f'!char {char}\n!test {op} {bod} {cl} Checking {{{{character().name}}}}...')
+    return '\n'.join(rets)
+</drac2>
+<drac2>
+return f"""!tembed {op} {bod2} {cl} {title_desc} {{{{' '.join(fs)}}}} -image "https://media1.tenor.com/m/Gxj9jECXZ_IAAAAC/gold-rich.gif" -footer "!wealth | Enter Ravenloft flaunt wealth" """
+</drac2>

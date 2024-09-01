@@ -1,0 +1,146 @@
+<drac2>
+al_name = 'dice'
+footer = f'!{al_name} ? | Naive dice statistics calculator'
+
+using(jh='65a30ab9-540c-4bdf-86ce-7af4760604a9')
+jh.setup(
+        al_name=al_name,
+        footer=footer,
+        )
+using(dicelib='32d70259-223e-4fe1-8303-dbaa8189e859')
+
+ch = character()
+co = combat()
+
+args = &ARGS&
+p_args = argparse(args)
+
+# Alias begins here
+fs = []
+warns = []
+
+desc = (f'Calculates statistics of simple dice expressions.\n\n'
+        f'__Usage__:\n'
+        f'`!{al_name} avg <dice_str>`\n'
+        f'* Returns the average of the dice expression\n\n'
+        f'`!{al_name} prob <dice_str> -dc <dc>`\n'
+        f'* Returns the probability of the dice beating (equal or higher) the DC\n\n'
+        f'`!{al_name} stats <dice_str>`\n'
+        f'* Returns statistical summary of the dice (min, max, avg, distribution, etc.)\n\n'
+        f'**Setup**\n'
+        f'You can set `!uvar diceDisplayWidth 30` to change the width of the distribution display '
+        f'for `!{al_name} stats <dice_str>`. The default value is 20.')
+
+def show_help():
+    if warns:
+        warns_s = '\n* '.join(['']+warns)
+        fs.append({'title':'Warning :warning:', 'body':warns_s})
+    return jh.embed(
+        title='Dice Manual',
+        desc=desc,
+        fields=fs,
+        f_thumb=None,
+        )
+
+if not args or args[0] in ['?', 'h', 'help']:
+    return show_help()
+
+SUBCS = ['avg', 'prob', 'stats']
+DICE_UVAR = 'diceDisplayWidth'
+try:
+    display_width = max(2, int(get_uvar(DICE_UVAR, '20') or '20'))
+except:
+    display_width = 20
+
+subc = args[0].lower()
+if subc not in SUBCS:
+    warns.append(f'Accepted first argument are {SUBCS} but found `{subc}`')
+    return show_help()
+
+if subc == 'avg':
+    if len(args) < 2:
+        warns.append(f'Please specify a dice expression')
+        return show_help()
+    dice = args[1]
+    avg = dicelib.avg(dice)
+    return jh.embed(
+        title='Dice Average',
+        desc=(f'Dice expression: {dice}\nAverage: {avg:.1f}'),
+        f_thumb=None,
+        )
+elif subc == 'prob':
+    k_args, l_args = jh.take_args(args, {'-dc':True})
+    dc = k_args['-dc']
+    if dc == []:
+        warns.append(f'Please specify a DC with `-dc <dc>`')
+    if len(l_args) < 2:
+        warns.append(f'Please specify a dice expression')
+    if warns:
+        return show_help()
+    dice = l_args[1]
+    try:
+        dc = int(dc[-1])
+    except:
+        dc = float(dc[-1])
+    prob = dicelib.prob(dice, dc)
+    return jh.embed(
+        title='Dice Probability',
+        desc=(f'Dice expression: {dice}\nDC: {dc}\nChance of success: {prob*100:.2f}%'),
+        f_thumb=None,
+        )
+elif subc == 'stats':
+    if len(args) < 2:
+        warns.append(f'Please specify a dice expression')
+        return show_help()
+    dice = args[1]
+    dist = dicelib.dist(dice)
+    minval = min(v for v, n in dist)
+    maxval = max(v for v, n in dist)
+    maxlen = max(len(str(v)) for v, n in dist)
+    maxn = 0
+    mode = 0
+    modeidx = 0
+    for i, (v, n) in enumerate(dist):
+        if n > maxn:
+            maxn = n
+            mode = v
+            modeidx = i
+    total = 0
+    count = 0
+    for v, n in dist:
+        total += v*n
+        count += n
+    avg = total/count
+    dist_s = []
+    for v, n in dist:
+        p = 100*n/count
+        divisor = 100 / display_width
+        fill = min(3*display_width, int(round((300*n/maxn)/divisor)))
+        half = fill % 3
+        half_c = ' ▒▓'[half]
+        half = int(bool(half))
+        fill = fill // 3
+        empty = display_width - fill - half
+        fill_c = '█'
+        empty_c = ' '
+        bar = f'`|{fill_c*fill}{half_c*half}{empty_c*empty}|` {p:.2f}%'
+        dist_s.append(f'`{v:>{maxlen}d}`: {bar}')
+    start_idx = max(0, modeidx-20)
+    end_idx = min(len(dist_s), modeidx+20+1)
+    if start_idx != 0 or end_idx != len(dist_s):
+        dist_title = f'Distribution (truncated around mode):'
+    else:
+        dist_title = f'Distribution:'
+    dist_s = '\n'.join(dist_s[start_idx:end_idx])
+    return jh.embed(
+        title='Dice Statistics',
+        desc=(f'Dice expression: {dice}\n'
+              f'Average: {avg:.1f}\n'
+              f'Minimum: {minval:d}\n'
+              f'Maximum: {maxval:d}\n'
+              f'Mode: {mode:d}\n'
+              f'{dist_title}\n{dist_s}'),
+        f_thumb=None,
+        )
+</drac2>
+

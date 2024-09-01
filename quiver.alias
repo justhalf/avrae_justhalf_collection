@@ -1,0 +1,629 @@
+<drac2>
+using(jh='65a30ab9-540c-4bdf-86ce-7af4760604a9')
+al_name = 'quiver'
+footer = f'!{al_name} ? | Custom Quiver Management by justhalf'
+jh.setup(
+    al_name=al_name,
+    footer=footer,
+    )
+
+ch = character()
+args = &ARGS&
+sub_cs = ['?', 'help', 'list', 'setup', 'create', 'delete', 'modify', 'add', 'move']
+
+default_arrow_types = {
+        'Arrows': {'short':'Arrows', 'alias':['Arrow'], 'disp':'__Arrows__', 'track':'all'},
+        'Arrows +1': {'short':'Arrows +1', 'alias':['+1'], 'disp':'Arrows __+1__', 'track':'all'},
+        'Hammerhead Arrows': {'short':'Hammerhead', 'alias':['Hammer', 'Hammerhead'], 'disp':'__Hammer__head Arrows', 'track':'all'},
+        'Broadhead Arrows': {'short':'Broadhead', 'alias':['Broad', 'Broadhead'], 'disp':'__Broad__head Arrows', 'track':'all'},
+        'Corkscrew Arrows': {'short':'Corkscrew', 'alias':['Cork', 'Corkscrew'], 'disp':'__Cork__screw Arrows', 'track':'all'},
+        'Rope Arrows': {'short':'Rope', 'alias':['Rope'], 'disp':'__Rope__ Arrows', 'track':'all'},
+        'Fire Arrows': {'short':'Fire', 'alias':['Fire'], 'disp':'__Fire__ Arrows', 'track':'stored'},
+        'Knock-out Arrows': {'short':'Knock-out', 'alias':['Knock', 'Knock-out'], 'disp':'__Knock__-out Arrows', 'track':'stored'},
+        'Blinding Arrows': {'short':'Blinding', 'alias':['Blind', 'Blinding'], 'disp':'__Blind__ing Arrows', 'track':'stored'},
+        'Concussion Arrows': {'short':'Concussion', 'alias':['Concuss', 'Concussion'], 'disp':'__Concuss__ion Arrows', 'track':'stored'},
+        'Smoking Arrows': {'short':'Smoking', 'alias':['Smoke', 'Smoking'], 'disp':'__Smoking__ Arrows', 'track':'stored'},
+        'Poisoncloud Arrows': {'short':'Poisoncloud', 'alias':['Poison', 'Poisoncloud'], 'disp':'__Poison__cloud Arrows', 'track':'stored'},
+        'Magefire Arrows': {'short':'Magefire', 'alias':['Mage', 'Magefire'], 'disp':'__Mage__fire Arrows', 'track':'stored'},
+        'Explosive Arrows': {'short':'Explosive', 'alias':['Explosive', 'Explode'], 'disp':'__Explosive__ Arrows', 'track':'stored'},
+        'Ice Arrows': {'short':'Ice', 'alias':['Ice'], 'disp':'__Ice__ Arrows', 'track':'stored'},
+        'Thunderclap Arrows': {'short':'Thunderclap', 'alias':['Thunder', 'Thunderclap'], 'disp':'__Thunderclap__ Arrows', 'track':'stored'},
+        'Lightning Arrows': {'short':'Lightning', 'alias':['Lightning'], 'disp':'__Lightning__ Arrows', 'track':'stored'},
+        'Mind Piercers': {'short':'Mind', 'alias':['Mind'], 'disp':'__Mind__ Piercers', 'track':'stored'},
+        'Holy Arrows': {'short':'Holy', 'alias':['Holy'], 'disp':'__Holy__ Arrows', 'track':'stored'},
+        'Unholy Arrows': {'short':'Unholy', 'alias':['Unholy'], 'disp':'__Unholy__ Arrows', 'track':'stored'},
+        'Acid Arrows': {'short':'Acid', 'alias':['Acid'], 'disp':'__Acid__ Arrows', 'track':'stored'},
+        'Glue Arrows': {'short':'Glue', 'alias':['Glue'], 'disp':'__Glue__ Arrows', 'track':'stored'},
+        'Healing Arrows': {'short':'Healing', 'alias':['Heal', 'Healing'], 'disp':'__Heal__ing Arrows', 'track':'stored'},
+        }
+try:
+    quiver_config = load_json(ch.get_cvar('quiverConfig', '{}'))
+except:
+    quiver_config = {}
+if not quiver_config or 'arrow_types' not in quiver_config:
+    quiver_config['arrow_types'] = {}
+
+def disp_cols(vals, n=3, title='', as_obj=False):
+    if len(vals) < 9:
+        good_n = 1
+    elif len(vals) < 17:
+        good_n = 2
+    else:
+        good_n = 3
+    n = min(n, good_n)
+    fs = []
+    n_each = (len(vals)+n-1)//n
+    cur_list = []
+    for val in vals:
+        cur_list.append(val)
+        if len(cur_list) == n_each:
+            fs.append('\n'.join(cur_list))
+            cur_list = []
+    if cur_list:
+        fs.append('\n'.join(cur_list))
+        cur_list = []
+    if as_obj:
+        fs = [{'title':title if idx==0 else '','body':f,'inline':True} for idx, f in enumerate(fs)]
+    else:
+        fs = [f'-f "{title if idx==0 else ""}|{f}|inline"' for idx, f in enumerate(fs)]
+    return fs
+
+arrow_types = quiver_config['arrow_types']
+
+extra_fs = disp_cols([f'* {arrow["disp"]}' for name, arrow in arrow_types.items()
+                      if name not in default_arrow_types],
+                     title='Your Custom Arrows', as_obj=True)
+if not args or args[0] in ['?', 'help'] or args[0] not in sub_cs:
+    return jh.embed(
+        title=f'Custom Quiver Management',
+        desc=(
+            f'This alias helps manage your quiver contents, especially if you have Quiver of Ehlonna and are '
+            f'using the customized alias `!hud` that shows your arrows in various locations:\n'
+            f'* `main`\n* `storage`\n* `used`\n'
+            f'The default list handles every arrow type in ER Expanded Arrow (for both arrows and bolts).\n'
+            f'You can also make a custom arrow/bolt with `!{al_name} create`.'
+            ),
+        fields=[
+            {'title':f'Usage',
+             'body':(
+                 f'`!{al_name} list`\n'
+                 f'* List __your__ current arrows\n\n'
+                 f'`!{al_name} setup (all) (<arrow_type>)* (-bolt)`\n'
+                 f'* Run `!{al_name} setup` without arguments to see list of default arrows.\n'
+                 f'* With `all`: make all the CCs for ER Expanded Arrows\n'
+                 f'* Can specify arrow types to only setup those arrows\n'
+                 f'* Add `-bolt` to sets up bolts version instead of arrows\n\n'
+                 f'`!{al_name} create <arrow_type> (-short <name>) (-alias <name>)* (-disp <name>) '
+                 f'(-track all|stored|none)`\n'
+                 f'* Create a new arrow type, making the CCs based on the `-track` value\n\n'
+                 f'`!{al_name} modify <arrow_type>`\n'
+                 f'* Modify an existing arrow type. Same arguments as `create`.\n\n'
+                 f'`!{al_name} delete <arrow_type>`\n'
+                 f'* Delete a specific arrow type from all locations\n\n'
+                 f'`!{al_name} add <location> (<arrow_type> <amount>)+`\n'
+                 f'* Add a specified amount of arrows into the specified location\n'
+                 f'* Can specify multiple types, and the amount can be negative\n\n'
+                 f'`!{al_name} move <source> <target> (<arrow_type> <amount>)+`\n'
+                 f'* Move arrows from `<source>` to `<target>` locations.'
+                 ),
+             },
+            ],
+        f_thumb=False,
+        )
+
+warns = []
+
+def warn_s(as_obj=False):
+    if not warns:
+        return ''
+    warns_s = '\n'.join(warns)
+    warns_s = warns_s.replace('"', '\\"')
+    fs = jh.emb.paginate_field({
+        'title': '\u26A0\uFE0F Warning \u26A0\uFE0F',
+        'body': warns_s,
+        'inline': False,
+        })
+    if as_obj:
+        return fs
+    fs = [f'-f "{jh.emb.field_to_arg(f)}"' for f in fs]
+    return ' '.join(fs)
+
+LOCS = {
+        'all': ['', 'Stored ', 'Used '],
+        'stored': ['', 'Stored '],
+        'none': [''],
+        }
+LOCS_P_TO_LOC = {'m': '',
+                 'u': 'Used ',
+                 's': 'Stored ',
+                 }
+
+alias_map = {}
+for arrow_type, arrow in arrow_types.items():
+    alias_map[arrow_type] = arrow_type
+    alias_map[arrow_type.lower()] = arrow_type
+    for alias in arrow['alias']:
+        if alias in alias_map and alias_map[alias] != arrow_type:
+            # Alias clash
+            warns.append(f'* Alias "{alias}`" for "{arrow_type}" clashes with "{alias_map[alias]}"')
+        alias_map[alias] = arrow_type
+        alias_map[alias.lower()] = arrow_type
+
+default_alias_map = {}
+for arrow_type, arrow in default_arrow_types.items():
+    default_alias_map[arrow_type] = arrow_type
+    default_alias_map[arrow_type.lower()] = arrow_type
+    for alias in arrow['alias']:
+        default_alias_map[alias] = arrow_type
+        default_alias_map[alias.lower()] = arrow_type
+
+def get_arrow(name, use_default=False):
+    cur_alias_map = default_alias_map if use_default else alias_map
+    name = name.lower()
+    if name in cur_alias_map:
+        # For exact matches
+        name = cur_alias_map[name]
+        return name, [name]
+    candidates = list(set(cur_alias_map[c] for c in cur_alias_map.keys() if name in c))
+    if len(candidates) == 0:
+        return None, []
+    elif len(candidates) == 1:
+        return candidates[0], candidates
+    else:
+        return None, candidates
+
+def check_arrows(arr_list, use_default=True, verb='setup'):
+    missing_arrow = []
+    multiple_arrow = []
+    exact_arrow = []
+    if not arr_list:
+        exact_arrow = list(default_arrow_types.keys())
+    else:
+        for arrow_in in arr_list:
+            cur_arrow, cur_list = get_arrow(arrow_in, use_default=use_default)
+            if len(cur_list) == 0:
+                missing_arrow.append(arrow_in)
+            elif len(cur_list) > 1:
+                if len(cur_list) > 3:
+                    cur_list = cur_list[:3] + ['...']
+                multiple_arrow.append(f'* {arrow_in} ({", ".join(cur_list)})')
+            else:
+                exact_arrow.append(cur_arrow)
+        if missing_arrow:
+            warns.append(f'Could not find the following arrows: {", ".join(missing_arrow)}')
+        if multiple_arrow:
+            multiple_arrow_s = '\n'.join(multiple_arrow)
+            warns.append(f'These arrows have multiple matches:\n{multiple_arrow_s}')
+    if missing_arrow or multiple_arrow:
+        return jh.embed(
+            title=f'{ch.name} failed to {verb} their arrows! \u274C',
+            desc=(
+                f'There are some arrows in the input with either no match or multiple matches against '
+                f'{"the default" if use_default else "your"} list of arrows '
+                f'(see with `!{al_name}{"" if use_default else " list"}`)'
+                ),
+            fields=warn_s(as_obj=True),
+            f_thumb=False,
+            ), False
+    return exact_arrow, True
+
+subc = args[0].lower()
+
+if subc == 'list':
+    arrow_list = []
+    for arrow_type, arrow in arrow_types.items():
+        locs = LOCS[arrow['track']]
+        metadata = []
+        for loc in locs:
+            cc_name = f'{loc}{arrow_type}'
+            suffix = loc[:1].lower()
+            if not suffix:
+                suffix = 'm'
+            metadata.append(f'{ch.get_cc(cc_name)}{suffix}')
+        arrow_list.append(f'{arrow_type} ({", ".join(metadata)})')
+    if len(arrow_list) == 0:
+        return jh.embed(
+            title=f'{ch.name} has no arrows!',
+            desc=(
+                f'{ch.name} has not registered arrows with `!{al_name}`.\n'
+                f'See `!{al_name} help` and `!{al_name} setup` for more info on how to set it up.'
+                ),
+            fields=warn_s(as_obj=True),
+            f_thumb=False,
+            )
+    fs = disp_cols(arrow_list, n=2, as_obj=True)
+    return jh.embed(
+        title=f'{ch.name} looks at their arrow list!',
+        desc=f'Your arrow list (the counts in brackets for **__m__**ain, **__s__**tored, and **__u__**sed):',
+        fields=fs + warn_s(as_obj=True),
+        f_thumb=False,
+        )
+
+if subc == 'setup':
+    use_bolt = bool(argparse(args[1:]).last('bolt', False))
+    setup_list = [arg for arg in args[1:] if arg != '-bolt']
+    if len(setup_list) == 0:
+        fs = disp_cols([f'* {arrow["disp"]}' for arrow in default_arrow_types.values()], as_obj=True)
+        return jh.embed(
+            title=f'{ch.name} reads how to setup their quiver!',
+            desc=(
+                f'Sets up your list of arrows based on the default list of arrows.\n\n'
+                f'**Usage**\n'
+                f'`!{al_name} setup (all) (<arrow_type>)* (-bolt)`\n'
+                f'* `all`: to setup ALL arrows in the ER Expanded Arrows document\n'
+                f'* `<arrow_type>`: select the special arrow to be set up\n'
+                f'* `-bolt`: use bolts instead of arrows\n\n'
+                f'**Examples**\n'
+                f'`!{al_name} setup all`\n* Make the CCs for all special arrows\n'
+                f'`!{al_name} setup smoking blinding -bolt`\n* Make the CCs for Smoking Bolts and Blinding Bolts'
+                ),
+            fields=[
+                {'title':f'',
+                 'body':(
+                     f'By default, this alias recognizes the following arrows.\n'
+                     f'The underlined part will be recognized as the full name of the arrows as well.'
+                     ),
+                 },
+                ] + fs + extra_fs + warn_s(as_obj=True),
+            f_thumb=False,
+            )
+    if len(setup_list) == 1 and setup_list[0] == 'all':
+        setup_list = []
+    err_msg, success = check_arrows(setup_list, use_default=True, verb='setup')
+    if not success:
+        return err_msg
+    exact_arrow = err_msg
+
+    setup_arrows = []
+    created_ccs = []
+    for arrow_type in exact_arrow:
+        if not setup_list and arrow_type.replace('Arrow', 'Bolt' if use_bolt else 'Arrow') in arrow_types:
+            continue
+        arrow = default_arrow_types[arrow_type]
+        if use_bolt:
+            arrow = dict(arrow)
+            arrow_type = arrow_type.replace('Arrow', 'Bolt')
+            arrow['short'] = arrow['short'].replace('Arrow', 'Bolt')
+            arrow['disp'] = arrow['disp'].replace('Arrow', 'Bolt')
+            arrow['alias'] = [a.replace('Arrow', 'Bolt') for a in arrow['alias']]
+        alias = [a for a in arrow['alias'] if (a.lower() not in alias_map or alias_map[a.lower()] == arrow_type)]
+        for a in alias:
+            alias_map[a] = arrow_type
+            alias_map[a.lower()] = arrow_type
+        arrow_types[arrow_type] = arrow
+        setup_arrows.append(arrow_type)
+
+        # Creating CCs
+        locs = LOCS[arrow['track']]
+        for loc in locs:
+            cc_name = f'{loc}{arrow_type}'
+            if not ch.cc_exists(name=cc_name):
+                ch.create_cc(name=cc_name, minVal=0)
+                created_ccs.append(cc_name)
+    ch.set_cvar('quiverConfig', dump_json(quiver_config))
+
+    arr_fs = disp_cols(setup_arrows, as_obj=True)
+    if created_ccs:
+        fs = disp_cols(created_ccs, as_obj=True)
+        return jh.embed(
+            title=f'{ch.name} sets up their quiver! \u2705',
+            desc=f'The following CCs were created:',
+            fields=fs + [
+                {'title':'',
+                 'body':(
+                     f'Check them out with `!hud` command.\n'
+                     f'The following arrows were set up:'
+                     ),
+                 },
+                ] + arr_fs + warn_s(as_obj=True),
+            f_thumb=False,
+            )
+    else:
+        return jh.embed(
+            title=f'{ch.name} is already ready to go! \u2705',
+            desc=(
+                f'No new CCs were created.\nCheck your arrow list with `!hud`.\n'
+                f'The following arrows were set up:'
+                ),
+            fields=arr_fs + warn_s(as_obj=True),
+            f_thumb=False,
+            )
+
+if subc in ['create', 'modify']:
+    if subc == 'create':
+        title = 'Creating a new arrow type'
+        verb = 'create a new'
+        verb_p = 'created a new'
+        verb_s = 'creates'
+    else:
+        title = 'Modifying an existing arrow type'
+        verb = 'modify an existing'
+        verb_p = 'modified an existing'
+        verb_s = 'modifies'
+    if len(args) < 2:
+        return jh.embed(
+            title=title,
+            desc=f'Need to specify the arrow type!',
+            fields=[
+                {'title':f'Usage',
+                 'body':(
+                     f'`!{al_name} {subc} <arrow_type>`\n'
+                     f'* This will {verb} arrow type, making the CCs for the 3 locations (`main`, `storage`, `used`)\n\n'
+                     f'Optional arguments:\n'
+                     f'* `-short <name>` - short name for the arrow for some compact displays\n'
+                     f'* `-alias <name>` - names to be considered full name for this arrow. Can be specified multiple times.\n'
+                     f'* `-disp <name>` - what to display, supports Discord formatting\n'
+                     f'* `-track <type>` - \\"all\\", \\"stored\\", or \\"none\\".\n'
+                     f'  * \\"all\\" - Make these CCs: `main`, `storage`, `used`\n'
+                     f'  * \\"stored\\" - Make these CCs: `main`, `storage`\n'
+                     f'  * \\"none\\" - Make only the `main` CC.'
+                     ),
+                 },
+                {'title':f'Example',
+                 'body':(
+                     f'`!{al_name} {subc} \\"Hothand Arrows\\" -short Hothand -alias Hot -alias Hand -track none`\n'
+                     f'This {verb_s} a new arrow type called \\"Hothand Arrows\\", with the aliases \\"Hot\\" and '
+                     f'\\"Hand\\". Keeps track only the main storage, so only one CC will be made, named \\"Hothand '
+                     f'Arrows\\".'
+                     ),
+                 },
+                ] + warn_s(as_obj=True),
+            f_thumb=False,
+            )
+    arrow_type = args[1]
+    args = argparse(args[2:])
+    short = args.last('short', None)
+    alias = args.get('alias', [])
+    disp = args.last('disp', None)
+    track = args.last('track', None)
+    if subc == 'modify':
+        err_msg, success = check_arrows([arrow_type], use_default=False, verb='modify')
+        if not success:
+            return err_msg
+        arrow_type = err_msg[0]
+        arrow = arrow_types[arrow_type]
+        if short is None:
+            short = arrow['short']
+        if not alias:
+            alias = arrow['alias']
+        if disp is None:
+            disp = arrow['disp']
+        if track is None:
+            track = arrow['track']
+    if short is None:
+        short = arrow_type
+    if alias is None:
+        alias = []
+    if disp is None:
+        disp = arrow_type
+    if track is None:
+        track = 'all'
+    if track not in LOCS:
+        return jh.embed(
+            title=f'{ch.name} failed to {verb} arrow type! \u274C',
+            desc=f'`-track` (given `{track}`) needs to be one of the following:\n* all\n* stored\n* none',
+            fields=warn_s(as_obj=True),
+            f_thumb=False,
+            )
+    arrow = {'short':short, 'alias':alias, 'disp':disp, 'track':track}
+    locs = LOCS[track]
+    no_locs = set(['', 'Stored ', 'Used '])-set(locs)
+    arrow_types[arrow_type] = arrow
+    created_ccs = []
+    for loc in locs:
+        cc_name = f'{loc}{arrow_type}'
+        if not ch.cc_exists(name=cc_name):
+            ch.create_cc(name=cc_name, minVal=0)
+            created_ccs.append(f'* {cc_name}')
+    deleted_ccs = []
+    for loc in no_locs:
+        cc_name = f'{loc}{arrow_type}'
+        if ch.cc_exists(name=cc_name):
+            cc = ch.cc(cc_name)
+            if cc.max != 2147483647:
+                deleted_ccs.append(f'* {cc.name}: {cc.value} / {cc.max}')
+            else:
+                deleted_ccs.append(f'* {cc.name}: {cc.value}')
+            ch.delete_cc(cc_name)
+    if created_ccs:
+        fld_cc = {'title':f'Created CCs',
+                  'body':'\n'.join(created_ccs)}
+    else:
+        fld_cc = None
+    if deleted_ccs:
+        fld_deleted_cc = {'title':f'Deleted CCs',
+                          'body':'\n'.join(deleted_ccs)}
+    else:
+        fld_deleted_cc = None
+    ch.set_cvar('quiverConfig', dump_json(quiver_config))
+
+    short_s = short.replace('"', '\\"')
+    alias_s = ', '.join([f'"{a}"' for a in alias])
+    disp_s = disp.replace('"', '\\"')
+    track_s = track
+    return jh.embed(
+        title=f'{ch.name} {verb_p} arrow type!',
+        desc=(
+            f'{ch.name} {verb_p} arrow type: \\"{arrow_type}\\"\n'
+            f'Short name - {short_s}\n'
+            f'Alias - {alias_s}\n'
+            f'Display - {disp_s}\n'
+            f'Track - {track_s}'
+            ),
+        fields=[fld_cc, fld_deleted_cc]+warn_s(as_obj=True),
+        )
+
+if subc == 'delete':
+    if len(args) < 2:
+        return jh.embed(
+            title=f'Deleting arrow types',
+            desc=f'Need to specify the arrow type(s)!',
+            fields=[
+                {'title':f'Usage',
+                 'body':(
+                     f'`!{al_name} delete <arrow_type>+`\n'
+                     f'* This will delete the specified arrow types, removing the CCs for the 3 locations '
+                     f'(`main`, `storage`, `used`)'
+                     ),
+                 },
+                ] + warn_s(as_obj=True),
+            f_thumb=False,
+            )
+    delete_list = args[1:]
+    err_msg, success = check_arrows(delete_list, use_default=False, verb='delete')
+    if not success:
+        return err_msg
+    exact_arrow = err_msg
+
+    ccs = []
+    for arrow_type in exact_arrow:
+        arrow = arrow_types[arrow_type]
+        for loc in LOCS[arrow['track']]:
+            cc_name = f'{loc}{arrow_type}'
+            if ch.cc_exists(name=cc_name):
+                cc = ch.cc(cc_name)
+                if cc.max != 2147483647:
+                    ccs.append(f'* {cc.name}: {cc.value} / {cc.max}')
+                else:
+                    ccs.append(f'* {cc.name}: {cc.value}')
+                ch.delete_cc(cc_name)
+    new_arrow_types = {k:v for k,v in arrow_types.items() if k not in exact_arrow}
+    quiver_config['arrow_types'] = new_arrow_types
+    ch.set_cvar('quiverConfig', dump_json(quiver_config))
+
+    ccs_s = '\n'.join(ccs)
+    return jh.embed(
+        title=f'{ch.name} deleted some of their arrows! \U0001F9F9',
+        desc=f'The following CCs were deleted:\n{ccs_s}',
+        fields=warn_s(as_obj=True),
+        )
+
+loc_p_list = ['main', 'm', 'used', 'u', 'storage', 's']
+
+def chg_s(cc_name, prev_amt, curr_amt, chg):
+    return f'* {cc_name}: {prev_amt} \u2192 **{curr_amt}**({chg})'
+
+if subc == 'add':
+    err_msg = []
+    if len(args) < 4:
+        err_msg.append(f'* Need to specify location and at least one arrow type and amount!')
+    else:
+        loc_p = args[1].lower()
+        if loc_p not in loc_p_list:
+            err_msg.append(f'* `<location>` needs to be one of __`m`__`ain`, __`u`__`sed`, __`s`__`torage`, not __`{loc_p}`__')
+        if len(args)%2 != 0:
+            err_msg.append(f'* Need to provide the amount for each arrow type!')
+    if err_msg:
+        err_msg = '\n'.join(err_msg)
+        return jh.embed(
+            title=f'{ch.name} failed to add arrows! \u274C',
+            desc=err_msg,
+            fields=[
+                {'title':f'Usage',
+                 'body':(
+                     f'`!{al_name} add <location> (<arrow_type> <amount>)+`\n'
+                     f'* Add the specified amount for each arrow type provided in the given location\n'
+                     f'* Location options: __`m`__`ain`, __`u`__`sed`, __`s`__`torage`'
+                     ),
+                 },
+                ] + warn_s(as_obj=True),
+            f_thumb=False,
+            )
+    err_msg, success = check_arrows(args[2::2], use_default=False, verb='add')
+    if not success:
+        return err_msg
+    arrow_list = err_msg
+
+    loc = LOCS_P_TO_LOC[loc_p[0]]
+    changelog = []
+    for idx, arrow_type in enumerate(arrow_list):
+        amount = int(args[3+2*idx])
+        cc_name = f'{loc}{arrow_type}'
+        if ch.cc_exists(cc_name):
+            prev_amt = ch.get_cc(cc_name)
+            ch.mod_cc(cc_name, amount)
+            curr_amt = ch.get_cc(cc_name)
+            if prev_amt+amount != curr_amt:
+                warns.append(f'* Amount {cc_name} changed ({amount}) exceeds the available amount ({prev_amt})')
+            chg = f'+{amount}' if amount>0 else f'{amount}'
+            changelog.append(chg_s(cc_name, prev_amt, curr_amt, chg))
+        else:
+            warns.append('* Not modified, does not exist: {cc_name}')
+    changelog_s = '\n'.join(changelog)
+    return jh.embed(
+        title=f'{ch.name} adds arrows to their quiver! \u2705',
+        desc=f'Here are the changes:\n{changelog_s}',
+        fields=warn_s(as_obj=True),
+        f_thumb=False,
+        )
+
+if subc == 'move':
+    err_msg = []
+    if len(args) < 5:
+        err_msg.append(f'* Need to specify source and target location and at least one arrow type and amount!')
+    else:
+        sloc_p, tloc_p = args[1].lower(), args[2].lower()
+        if sloc_p not in loc_p_list:
+            err_msg.append(f'* `<source>` needs to be one of __`m`__`ain`, __`u`__`sed`, __`s`__`torage`, not __`{sloc_p}`__')
+        if tloc_p not in loc_p_list:
+            err_msg.append(f'* `<target>` needs to be one of __`m`__`ain`, __`u`__`sed`, __`s`__`torage`, not __`{tloc_p}`__')
+        if len(args)%2 != 1:
+            err_msg.append(f'* Need to provide the amount for each arrow type!')
+    if err_msg:
+        err_msg = '\n'.join(err_msg)
+        return jh.embed(
+            title=f'{ch.name} failed to move arrows! \u274C',
+            desc=err_msg,
+            fields=[
+                {'title':f'Usage',
+                 'body':(
+                     f'`!{al_name} move <source> <target> (<arrow_type> <amount>)+`\n'
+                     f'* Move the specified amount for each arrow type, from `<source>` to `<target>` location\n'
+                     f'* Location options: __`m`__`ain`, __`u`__`sed`, __`s`__`torage`'
+                     ),
+                 },
+                ] + warn_s(as_obj=True),
+            f_thumb=False,
+            )
+    err_msg, success = check_arrows(args[3::2], use_default=False, verb='move')
+    if not success:
+        return err_msg
+    arrow_list = err_msg
+
+    sloc = LOCS_P_TO_LOC[sloc_p[0]]
+    tloc = LOCS_P_TO_LOC[tloc_p[0]]
+    changelog = []
+    for idx, arrow_type in enumerate(arrow_list):
+        amount = int(args[4+2*idx])
+        scc_name = f'{sloc}{arrow_type}'
+        tcc_name = f'{tloc}{arrow_type}'
+        if ch.cc_exists(scc_name) and ch.cc_exists(tcc_name):
+            s_chg = f'-{amount}' if amount>0 else f'+{-amount}'
+            t_chg = f'+{amount}' if amount>0 else f'{amount}'
+            prev_samt = ch.get_cc(scc_name)
+            prev_tamt = ch.get_cc(tcc_name)
+            ch.mod_cc(scc_name, -amount)
+            ch.mod_cc(tcc_name, amount)
+            curr_samt = ch.get_cc(scc_name)
+            curr_tamt = ch.get_cc(tcc_name)
+            if amount > 0 and prev_samt-amount != curr_samt:
+                warns.append(f'* Amount moved for {scc_name} ({-amount}) exceeds the available amount ({prev_samt})')
+            if amount < 0 and prev_tamt-amount != curr_tamt:
+                warns.append(f'* Amount moved for {tcc_name} ({amount}) exceeds the available amount ({prev_tamt})')
+            changelog.append((f'{chg_s(scc_name, prev_samt, curr_samt, s_chg)}\n'
+                              f'{chg_s(tcc_name, prev_tamt, curr_tamt, t_chg)}'))
+        else:
+            if not ch.cc_exists(scc_name):
+                warns.append('* Not modified, does not exist: {scc_name}')
+            if not ch.cc_exists(tcc_name):
+                warns.append('* Not modified, does not exist: {tcc_name}')
+    changelog_s = '\n'.join(changelog)
+    changelog_s = f'Here are the changes:\n{changelog_s}'
+    return jh.embed(
+        title=f'{ch.name} moves arrows within their quiver! \u2705',
+        desc=changelog_s,
+        fields=warn_s(as_obj=True),
+        f_thumb=False,
+        )
+
+</drac2>

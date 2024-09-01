@@ -1,0 +1,279 @@
+<drac2>
+al_name = 'hud'
+footer = f'!{al_name} ? | Set `!cvar hudOrder` to customize the order'
+
+using(jh='65a30ab9-540c-4bdf-86ce-7af4760604a9')
+jh.setup(
+        al_name=al_name,
+        footer=footer,
+        )
+
+char = character()
+
+args = &ARGS&
+if args and args[0] in ['?', 'help']:
+    return jh.embed(
+        title=f'{char.name}',
+        desc=(f'Displays handy statistics of the current character.\n\n'
+              f'Customize the order by setting the cvar `hudOrder` as a JSON list.\n'
+              f'Available categories:\n'
+              f'- `char`: General Character Stats\n'
+              f'- `spell`: Spell Slots\n'
+              f'- `cc`: Limited Abilities\n'
+              f'- `quiver`: Ammo in Quiver\n'
+              f'- `used`: Ammo used (starts with "Used")\n'
+              f'- `storage`: Ammo in Storage (starts with "Stored")\n'
+              f'- `item`: Items (defined in `hudItemCCs`)\n'
+              f'- `tattoo`: Tattoo (contains "tattoo")\n'
+              f'- `tracker`: Any other trackers\n'
+              f'Add `^` at the end of the name to make it inline\n\n'
+              f'Example (default order): `!cvar hudOrder ["char","spell","cc","quiver^","used^","storage^","item","tattoo","tracker"]`\n\n'
+              f'Define which CCs are items by listing them in the cvar `hudItemCCs` as a JSON list.\n\n'
+              f'Like `!bag`, show only selected categories by supplying the name, accepting partial matches and multiple matches:\n'
+              f'* `!{al_name} spell` will list just your spell slots\n'
+              f'* `!{al_name} quiv tat` will list your quiver and tattoos'),
+        f_thumb=False,
+        )
+
+k_args, p_args = jh.take_args(args, {'-h':False})
+show_all = bool(k_args['-h'])
+
+# Constants
+AMMO = ["arrow", "bolt", "needle", "bullet",
+        "ammo", "shuriken", "javelin", "dart",
+        "dagger", "rock", "shot", "slug", "cartridge",
+        "mind piercer"]
+LEVEL_CHART = [int(lvl) for lvl in (
+                 get_svar("xptotals") or
+                 get("xptotals", default="0,300,900,2700,6500,14000,23000,34000,48000,64000,85000,100000,120000,140000,165000,195000,225000,265000,305000,355000")
+               ).split(",")]
+str_sc = char.stats.strength
+dex_sc = char.stats.dexterity
+con_sc = char.stats.constitution
+int_sc = char.stats.intelligence
+wis_sc = char.stats.wisdom
+cha_sc = char.stats.charisma
+
+stats_s = (f'**STR** {str_sc} | **DEX** {dex_sc} | **CON** {con_sc}\n'
+           f'**INT** {int_sc} | **WIS** {wis_sc} | **CHA** {cha_sc}')
+
+TATTOOS = ['tattoo']
+
+# Display counters with cc_str() or '{cur} / {max}'
+hud_display = get("hudDisplay")
+
+NEWLINE = "\n"
+cc_short = lambda counter: ' (Short)' if CC_Dict[counter].reset_on == 'short' else ''
+cc_disp  = lambda counter: char.cc_str(counter) if hud_display else f'{char.get_cc(counter)} / {char.get_cc_max(counter)}' if char.get_cc_max(counter) != 2147483647 else f'{char.get_cc(counter)}'
+
+# Ignored counters
+ignored = load_json(get('hudIgnore', '[]'))
+
+# Item Counters
+item_cc = load_json(get('hudItemCCs', '[]'))
+
+# Counters
+CC_Dict  = {cc.name: cc for cc in char.consumables}
+counters = [x for x in CC_Dict if x not in ignored]
+counters.sort()
+
+# Experience
+experience = ""
+if char.cc_exists("Experience") or get('xp'):
+    xp_name = get_svar("xpname") or get("xpname", default="Experience")
+    # Handle counter and cvar version of
+    if char.cc_exists("Experience"):
+        cur_exp = char.get_cc("Experience")
+        counters.remove('Experience')
+    else:
+        cur_exp = float(get('xp'))
+    if cur_exp and cur_exp <= LEVEL_CHART[-1]:
+        experience = f"\n**{xp_name}:** {cur_exp:,}/{LEVEL_CHART[min(level,19)]:,}"
+
+# Exhaustion
+exhaustion = ""
+if 'Exhaustion' in counters:
+    counters.remove('Exhaustion')
+    if char.cc_exists('Exhaustion') and char.get_cc('Exhaustion'):
+        exhaustion = f"\n**Exhaustion Level:** {char.get_cc('Exhaustion')} / 6"
+
+# Hit Dice
+hit_dice = ' | '.join([f'**HD ({hd.strip("Hit Dice()")}):** {char.cc_str(hd)}'
+                       for i in counters[::-1]
+                       if "Hit Dice" in i
+                       and (hd := counters.pop(counters.index(i)))])
+
+
+# Item Counters
+item_ccs = NEWLINE.join([f"**{cc}:** {cc_disp(cc)}"
+                         for i in counters[::-1]
+                         if i in item_cc
+                         and (cc := counters.pop(counters.index(i)))][::-1])
+
+# Stored ammo
+def stored_ammo_sort(item):
+    item = item.lower()
+    if item.startswith('stored '):
+        return item[7:] + '  '
+    return item[0:]
+
+stored_ammunition = [ammo for x in counters[::-1]
+               if [y for y in AMMO if y in x.lower()]
+               and x.lower().startswith('stored')
+               and (ammo := counters.pop(counters.index(x)))]
+
+if stored_ammunition:
+    stored_ammunition.sort(key=stored_ammo_sort)
+    total_stored = sum(CC_Dict[ammo].value for ammo in stored_ammunition)
+    n = len(stored_ammunition)
+    stored_ammunition = [f"{cc_disp(x)} **{x[7:]}**"
+                         for idx, x in enumerate(stored_ammunition)
+                         if idx < 3 or show_all or char.get_cc(x)>0]
+    if n > len(stored_ammunition):
+        stored_ammunition.append(f'...and {n-len(stored_ammunition)} more')
+    stored_ammunition = NEWLINE.join(stored_ammunition)
+    stored_ammunition += f'\n----------\n**__Total stored__**: {total_stored}'
+
+# Used ammo
+def used_ammo_sort(item):
+    item = item.lower()
+    if item.startswith('used '):
+        return item[5:] + '  '
+    return item[0:]
+
+used_ammunition = [ammo for x in counters[::-1]
+               if [y for y in AMMO if y in x.lower()]
+               and x.lower().startswith('used')
+               and (ammo := counters.pop(counters.index(x)))]
+
+if used_ammunition:
+    used_ammunition.sort(key=used_ammo_sort)
+    total_used = sum(CC_Dict[ammo].value for ammo in used_ammunition)
+    n = len(used_ammunition)
+    used_ammunition = [f"{cc_disp(x)} **{x[5:]}**"
+                       for idx, x in enumerate(used_ammunition)
+                       if idx < 3 or show_all or char.get_cc(x)>0]
+    if n > len(used_ammunition):
+        used_ammunition.append(f'...and {n-len(used_ammunition)} more')
+    used_ammunition = NEWLINE.join(used_ammunition)
+    used_ammunition += f'\n----------\n**__Total used__**: {total_used}'
+
+# Ammo
+def ammo_sort(item):
+    item = item.lower()
+    if item.startswith('used '):
+        return item[5:] + '  '
+    return item[0:]
+
+ammunition = [ammo for x in counters[::-1]
+               if [y for y in AMMO if y in x.lower()]
+               and (ammo := counters.pop(counters.index(x)))]
+if ammunition:
+    ammunition.sort(key=ammo_sort)
+    total_ammo = sum(CC_Dict[ammo].value for ammo in ammunition if 'Used' not in ammo)
+    n = len(ammunition)
+    ammunition = [f"{cc_disp(x)} **{x}**"
+                  for idx, x in enumerate(ammunition)
+                  if idx < 3 or show_all or char.get_cc(x)>0]
+    if n > len(ammunition):
+        ammunition.append(f'...and {n-len(ammunition)} more')
+    ammunition = NEWLINE.join(ammunition)
+    ammunition += f'\n----------\n**__Total in quiver__**: {total_ammo}'
+
+# Tattoos
+tattoos = NEWLINE.join([f"**{tattoo}:** {char.cc_str(tattoo)}"
+                         for i in counters[::-1]
+                         if [y for y in TATTOOS if y in i.lower()]
+                         and (tattoo := counters.pop(counters.index(i)))])
+
+# Trackers
+# Separate out counters that have no maximum set (defaults to 2147483647)
+trackers = NEWLINE.join([f"**{tracker}:** {cc_disp(tracker)}"
+                         for i in counters[::-1]
+                         if CC_Dict[i].max == 2147483647
+                         and (tracker := counters.pop(counters.index(i)))][::-1])
+
+# Rest of the counters
+
+cc = NEWLINE.join([f"""**{x}{cc_short(x)}:** {cc_disp(x)}"""
+                   for x in counters])
+
+co_char = combat().me if combat() and combat().me else character()
+
+# Spellcaster
+spellbook  = co_char.spellbook
+SpellDC    = spellbook.dc
+SpellSAB   = spellbook.sab
+spellslots = NEWLINE.join([f"{spellbook.slots_str(i)}"
+                           for i in range(1,10)
+                           if spellbook.get_max_slots(i)])
+
+# Passive Perception
+perc = co_char.skills.perception
+perc_adv = argparse(f"&*& {'adv' if perc.adv else 'dis' if perc.adv is False else ''}").adv()
+observant = 'observant' in get('feats','').lower()
+passive = f"**Passive Perception:** {10 + perc.value + (5 * perc_adv) + (5 * observant)}"
+
+# Other
+initiative = f"**Initiative:** {f'{co_char.skills.initiative.value:+}'}"
+hp_out = co_char.hp_str().replace('<', '').replace('>', '')
+
+# Class and subclass
+try:
+    subclasses = load_json(char.get_cvar('subclass', '{}'))
+except:
+    subclasses = {}
+classes = []
+for cls, lvl in char.levels:
+    subcls = subclasses.get(f'{cls.replace(" ", "")}Level', None)
+    if subcls:
+        subcls_s = f' ({subcls})'
+    else:
+        subcls_s = ''
+    classes.append(f'{lvl} {cls}{subcls_s}')
+classes_s = '\n'.join(classes)
+
+# Output order
+def_order = ['char', 'spell', 'cc', 'quiver^', 'used^', 'storage^', 'item', 'tattoo', 'tracker']
+order = load_json(get('hudOrder', dump_json(def_order)))
+order = [i for i in order if any(i.rstrip('^') == s.rstrip('^') for s in def_order)]
+
+if p_args:
+    order = [i for i in order if any(arg in i for arg in p_args)]
+
+desc = (f'**Level**: {char.levels.total_level}\n'
+        f'**Classes**\n{classes_s}\n'
+        f'**HP:** {hp_out} | **AC:** {co_char.ac}\n'
+        f'{initiative} | {passive}{experience}{exhaustion}\n'
+        f'{hit_dice if hit_dice else ""}\n\n'
+        f'{stats_s}')
+
+# Output
+fs = []
+for i in order:
+    inline = i[-1] == '^'
+    i = i.rstrip('^')
+    if i == 'char':
+        fs.append({'title':'Character Stats','body':desc})
+    if i == 'spell' and spellslots:
+        fs.append({'title':f'Spell Slots (DC {SpellDC}, {SpellSAB or 0:+} to Hit)', 'body':spellslots, 'inline':inline})
+    if i == 'cc' and cc:
+        fs.append({'title':f'Limited Abilities', 'body':cc, 'inline':inline})
+    if i == 'quiver' and ammunition:
+        fs.append({'title':f'Ammo in Quiver', 'body':ammunition, 'inline':inline})
+    if i == 'used' and used_ammunition:
+        fs.append({'title':f'Ammo used', 'body':used_ammunition, 'inline':inline})
+    if i == 'storage' and stored_ammunition:
+        fs.append({'title':'Ammo in Storage', 'body':stored_ammunition, 'inline':inline})
+    if i == 'item' and item_ccs:
+        fs.append({'title':f'Items', 'body':item_ccs, 'inline':inline})
+    if i == 'tattoo' and tattoos:
+        fs.append({'title':f'Tattoos', 'body':tattoos, 'inline':inline})
+    if i == 'tracker' and trackers:
+        fs.append({'title':f'Tracker', 'body':trackers, 'inline':inline})
+return jh.embed(
+    title=f'{char.name}',
+    fields=fs,
+    f_thumb=False,
+    )
+</drac2>

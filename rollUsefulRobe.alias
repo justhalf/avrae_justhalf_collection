@@ -1,0 +1,282 @@
+<drac2>
+al_name = 'rollUsefulRobe'
+footer = f'!{al_name} help | Enter Ravenloft roll for Robe of Useful Item'
+
+using(jh='65a30ab9-540c-4bdf-86ce-7af4760604a9')
+jh.setup(
+        al_name=al_name,
+        footer=footer,
+        )
+using(bl=jh.LIB['baglib'])
+
+ch = character()
+
+roll_table = {
+        ( 1,  8): 'Bag of 100gp',
+        ( 9, 15): 'Silver coffer (1 foot long, 6 inches wide and deep) worth 500gp',
+        (16, 22): ('Iron door (up to 10 feet wide and 10 feet high, barred on one side of your choice), which you can '
+                   'place in an opening you can reach; it conforms to fit the opening, attaching and hinging itself'),
+        (23, 30): '10 gems worth 100gp each',
+        (31, 44): 'Wooden ladder (24 feet long)',
+        (45, 51): 'A riding horse with saddle bags',
+        (52, 59): 'Pit (a cube 10 feet on a side), which you can place on the ground within 10 feet of you',
+        (60, 68): 'Potion of healing (4)',
+        (69, 75): 'Rowboat (12 feet long)',
+        (76, 83): 'Spell scroll containing one spell of 1st to 3rd level',
+        (84, 90): 'Mastiff (2)',
+        (91, 96): ('Window (2 feet by 4 feet, up to 2 feet deep), which you can place on a vertical surface you can '
+                   'reach'),
+        (97, 100):'Portable ram',
+}
+
+args = &ARGS&
+
+if args and args[0] in ['table', '-table']:
+    return jh.embed(
+        title='Robe of Useful Items d100 Table',
+        desc='The roll table for Robe of Useful Items',
+        fields=[
+            {'title':'Roll Table',
+             'body':'''```
+╔═══════╦════════════════════════════╗
+║ d100  ║           Patch            ║
+╠═══════╬════════════════════════════╣
+║ 01-08 ║ Bag of 100 gp              ║
+║ 09-15 ║ Silver coffer (1 ft long,  ║
+║       ║ 6 in wide and deep) worth  ║
+║       ║ 500 gp                     ║
+║ 16-22 ║ Iron door (up to 10 ft     ║
+║       ║ wide and 10 ft high,       ║
+║       ║ barred on one side of your ║
+║       ║ choice), which you can     ║
+║       ║ place in an opening you    ║
+║       ║ reach; it conforms to fit  ║
+║       ║ the opening, attaching and ║
+║       ║ hinging itself             ║
+║ 23-30 ║ 10 gems worth 100 gp each  ║
+║ 31-44 ║ Wooden ladder (24 ft long) ║
+║ 45-51 ║ A riding horse with saddle ║
+║       ║ bags                       ║
+║ 52-59 ║ Pit (a cube 10 ft on a     ║
+║       ║ side), which you can place ║
+║       ║ on the ground within 10 ft ║
+║       ║ of you                     ║
+║ 60-68 ║ Potion of healing (4)      ║
+║ 69-75 ║ Rowboat (12 ft long)       ║
+║ 76-83 ║ Spell scroll containing    ║
+║       ║ one spell of 1st to 3rd    ║
+║       ║ level                      ║
+║ 84-90 ║ Mastiff (2)                ║
+║ 91-96 ║ Window (2 ft by 4 ft, up   ║
+║       ║ to 2 ft deep), which you   ║
+║       ║ can place on a vertical    ║
+║       ║ surface you can reach      ║
+║ 97-00 ║ Portable ram               ║
+╚═══════╩════════════════════════════╝```'''}
+            ],
+        f_thumb=False,
+        )
+
+if args and (args[0] in ['?', 'help'] or args[0][0] != '-'):
+    return jh.embed(
+        title=f'Roll for patches in Robe of Useful Items',
+        desc=(f'Generates a collection of patches according to the rules for Robe of Useful Items, with optional '
+              f'additional server rules (e.g., no items of monetary value, or no scrolls, etc.)'),
+        fields=[
+            {'title':'Usage',
+             'body':(
+                 f'`!{al_name} (-vanilla) (-skip [d100 range])* (-bag bagName) (-nobag) (-scrollClass className)*`\n'
+                 f'By default, this will consider the server custom rule in `!svar {al_name}Config`.\n'
+                 f'By default, this will insert items into your bag named "Robe of Useful Items", adding numbers '
+                 f'at the end to prevent duplicates.\n'
+                 f'Optional arguments:\n'
+                 f'* `-vanilla`: ignore custom server rule, use spell list from Basic Rules.\n'
+                 f'* `-skip [d100 range]`: **additional** roll ranges that should be skipped. '
+                 f'Specify multiple times to skip more ranges. E.g., `-skip 9-15 -skip 35-44` removes the '
+                 f'possibility of rolling silver coffer, while reducing the proability of wooden ladder.\n'
+                 f'* `-bag bagName`: specify the bag name to automatically insert the rolled items in.\n'
+                 f'* `-nobag`: do not automatically add items into bag.\n'
+                 f'* `-scrollClass className`: the scroll drawn will be restricted to the classes given. '
+                 f'Specify multiple `-scrollClass` to specify multiple available classes. '
+                 f'If not specified, no restriction used.'),
+             },
+            {'title':'Robe of Useful Items',
+             'body':(
+                 f'This robe has cloth patches of various shapes and colors covering it. While wearing the robe, you '
+                 f'can use an action to detach one of the patches, causing it to become the object or creature it '
+                 f'represents. Once the last patch is removed, the robe becomes an ordinary garment.\n\n'
+                 f'The robe has two of each of the following patches:\n'
+                 f'* Dagger\n'
+                 f'* Bullseye lantern (filled and lit)\n'
+                 f'* Steel mirror\n'
+                 f'* 10-foot pole\n'
+                 f'* Hempen rope (50 feet, coiled)\n'
+                 f'* Sack\n\n'
+                 f'In addition, the robe has **4d4** other patches. The GM chooses the patches or determines them '
+                 f'randomly from the d100 roll table.'),
+             },
+            {'title':f'Displaying the Roll Table',
+             'body':f'If you want to display the roll table, simply run:\n`!{al_name} table`',
+             },
+            ],
+        f_thumb=False,
+        )
+
+fs = []
+args = argparse(args)
+
+# Enter Ravenloft spell list for scrolls
+s_spells = load_json(get_gvar('5de9389b-c943-4551-adfc-58fca5fcdb65'))
+v_spells = load_json(get_gvar('aa923430-a0fd-4fd9-94bd-c70238995d6f')) # Change the gvar for alternate spell list
+
+# Scroll classes
+sc_clss = args.get('scrollClass',[])
+if sc_clss:
+    sc_clss = [c.lower() for c in sc_clss]
+    s_spells = [s['name'] for s in s_spells['spells'] if s['level'] in [1,2,3] and any(cls.lower() in sc_clss for cls in s['classes'])]
+    v_spells = [s['name'] for s in v_spells['spells'] if s['level'] in [1,2,3] and any(cls.lower() in sc_clss for cls in s['classes'])]
+    fs.append({'title':f'Scroll Classes',
+               'body':f'The scrolls obtained are restricted to the following classes: {sc_clss}'})
+else:
+    s_spells = [s['name'] for s in s_spells['spells'] if s['level'] in [1,2,3]]
+    v_spells = [s['name'] for s in v_spells['spells'] if s['level'] in [1,2,3]]
+
+config = load_json(get_svar(f'{al_name}Config', {}))
+s_skips = []
+if config:
+    s_skips = config.get('skips', [])
+    if 'spells' in config:
+        s_spells = config['spells']
+
+# Additional skipped range
+skips = args.get('skip',[])
+
+# Whether to ignore server config
+vanilla = args.last('vanilla', False)
+if vanilla:
+    s_skips = []
+    spells = v_spells
+else:
+    skips = s_skips + skips
+    spells = s_spells
+
+nobag = args.get('nobag', None)
+if nobag:
+    bag_name = None
+else:
+    bags = bl.load_bags()
+    bag_name = args.last('bag')
+    if not bag_name or bag_name == 'True':
+        bag_name = 'Robe of Useful Items'
+        bag_default = True
+    else:
+        bag_default = False
+    bag = bl.get_bag(bags, bag_name)
+    n = 1
+    if bag_default:
+        # Default bag name used, add number until we get a new bag name
+        while bag:
+            bag_name = f'Robe of Useful Items #{n}'
+            bag = bl.get_bag(bags, bag_name)
+            n += 1
+    if bag:
+        bag_name, bag = bag
+    else:
+        # Doesn't exist, create a new one
+        bag_name, bag = bl.new_bag(bags, bag_name)
+
+# Rollable range
+max_roll = 100
+nums = list(range(1, max_roll+1))
+n_skipped = 0
+if skips:
+    if len(s_skips) == len(skips):
+        v_skips_s = ''
+    else:
+        v_skips_s = f'\nUser supplied: {", ".join(skips[len(s_skips):])}'
+    if len(s_skips) == 0:
+        s_skips_s = ''
+    else:
+        s_skips_s = f'\nServer configuration: {", ".join(s_skips)}'
+    fs.append({'title':f'Ranges skipped',
+               'body':f'The following ranges are skipped:{s_skips_s}{v_skips_s}'})
+    for skip in skips:
+        start, end = [int(s) for s in skip.split('-')]
+        for i in range(start, end+1):
+            nums[i-1] = 0
+    while max_roll-n_skipped-1 >= 0 and nums[max_roll-n_skipped-1] == 0:
+        n_skipped += 1
+    for idx in range(max_roll):
+        if nums[idx] == 0:
+            nums[max_roll-n_skipped-1], nums[idx] = nums[idx], nums[max_roll-n_skipped-1]
+            while max_roll-n_skipped-1 >= 0 and nums[max_roll-n_skipped-1] == 0:
+                n_skipped += 1
+        if idx >= max_roll-n_skipped-1:
+            break
+if max_roll-n_skipped-1 == -1:
+    return jh.embed(
+        title=f'Error: Nothing to roll!',
+        desc=f'The skipped range covers everything. Please allow at least one rollable range.',
+        f_thumb=False,
+        )
+
+# Roll number of patches
+n_patches = vroll('4d4')
+n = n_patches.total
+
+# Roll individual patch
+i_patches = [str(nums[vroll(f'1d{max_roll-n_skipped}').total-1]) for _ in range(n)]
+i_patches_s = f'{n}d{max_roll} = ({", ".join(i_patches)})'
+patches = {
+        'Dagger': 2,
+        'Bullseye lantern (filled and lit)': 2,
+        'Steel mirror': 2,
+        '10-foot pole': 2,
+        'Hempen rope (50 feet, coiled)': 2,
+        'Sack': 2,
+        }
+for i_patch in i_patches:
+    i_patch = int(i_patch)
+    for (start, end), item in roll_table.items():
+        if start <= i_patch <= end:
+            if item not in patches:
+                patches[item] = 0
+            patches[item] += 1
+f_patches = {}
+for item, count in patches.items():
+    if 'spell scroll' in item.lower():
+        scrolls = [f'Scroll of {spells[s_idx-1]}' for s_idx in [vroll(f'1d{len(spells)}').total for _ in range(count)]]
+        if bag_name:
+            delta = {}
+            for scroll in scrolls:
+                if scroll not in delta:
+                    delta[scroll] = 0
+                delta[scroll] += 1
+            bl.modify_item(bags, bag_name=bag_name, delta=delta) 
+        scrolls_s = ''.join([f'\n  * {s}' for s in scrolls])
+        f_patches[f'{item}`{scrolls_s}`'] = count
+    else:
+        f_patches[item] = count
+        if bag_name:
+            bl.modify_item(bags, item, count, bag_name=bag_name)
+result_s = '\n* '.join(f'{count} patch{"es" if count!=1 else ""} of `{item}`'.replace('``','') for item, count in f_patches.items())
+result_s = f'* {result_s}'
+fs.append({'title':f'Patches',
+           'body':(f'Number of patches: {n_patches}\n'
+                   f'Roll for patches: {i_patches_s}\n'
+                   f'{result_s}')})
+
+if bag_name:
+    bl.save_bags(bags)
+    fs.append({'title':f'Bag Updated!',
+               'body':f'Bag name: **{bag_name}**\nCheck the content with `!bag`.'})
+else:
+    fs.append({'title':f'No bag update',
+               'body':f'The option `-nobag` was specified.'})
+
+return jh.embed(
+    title=f'{ch.name} obtains Robe of Useful Items!',
+    fields=fs,
+    f_thumb=False,
+    )
+</drac2>

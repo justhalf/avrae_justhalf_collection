@@ -1,0 +1,98 @@
+<drac2>
+out = []
+try:
+ ch = character()
+ for_player = True
+except:
+ for_player = False
+if combat():
+ args = &ARGS&
+ idx = -1
+ for i, arg in enumerate(args):
+  if arg == 'oil':
+   idx = i
+ oil_arg = None
+ dmg_type = None
+ if idx < len(args)-1 and args[idx+1].startswith('oil'):
+  oil_arg = args[idx+1]
+  dmg_type = oil_arg[3:].lower()
+  if len(dmg_type) < 1:
+   dmg_type = None
+ if for_player and combat().me:
+  effects = combat().me.effects
+  bo_eff = None
+  no_match = True
+  det_types = []
+  for effect in effects:
+   if 'blade oil' in effect.name.lower():
+    idx = effect.name.lower().index('blade oil')
+    effect_str = effect.name[idx:]
+    cur_dmg_type = effect_str.split(' ', 2)[-1].split(')')[0].strip('()').lower()
+    det_types.append(cur_dmg_type)
+    if bo_eff is None:
+     bo_eff = effect
+    if dmg_type is not None and dmg_type == cur_dmg_type:
+     no_match = False
+     bo_eff = effect
+  if dmg_type is not None and no_match:
+   return (f'-f "No matching damage type|You specified a damage type by `{oil_arg}`, but '
+     f'no matching effect \\"Blade Oil ({dmg_type})\\" is found on your active character ({ch.name})\n'
+     f'__**No extra damage has been applied to the current attack**__. You need to apply the extra '
+     f'1d4[{dmg_type}] damage manually if needed, and reducing the counter manually as well."')
+  elif dmg_type is None and len(det_types) > 1:
+   det_type_s = f'\n'.join(f'* {det_type}' for det_type in det_types)
+   return (f'-f "Multiple Blade Oil effects|{ch.name} has multiple Blade Oil effects.\n'
+     f'{det_type_s}\n'
+     f'__**No extra damage has been applied to the current attack**__. You need to apply the extra '
+     f'damage manually if needed.\n\n'
+     f'For future use with multiple Blade Oil effects, you can add `oil{det_types[0].title()}` or `oil{det_types[1].title()}` immediately '
+     f'after `oil` in your attack. For example, to use the {det_types[0].title()} damage:\n'
+     f'`!a longbow -t ZO1 oil oil{det_types[0].title()}`"')
+  if bo_eff:
+   dmg_type = bo_eff.name.split(' ', 2)[-1].strip('()').lower()
+  else:
+   return (f'-f "{ch.name} does not have any Blade Oil effect|Apply the effect, e.g., \\"Blade Oil (radiant)\\" '
+     f'to the character to use this snippet.\n\nThe alias `!oil radiant` can be used to apply it automatically, '
+     f'with the option to manage the corresponding blade oil item in your `!bag` as well."')
+
+  cc = f'Blade Oil ({dmg_type})'
+  if not ch.cc_exists(cc) or ch.get_cc(cc):
+   amt = 1
+   if ch.cc_exists(cc):
+    arg_o = argparse(args)
+    amt = int(arg_o.last('rr', '1')) * len(arg_o.get('t',['']))
+    amt = min(amt, ch.get_cc(cc))
+    ch.mod_cc(cc, -amt)
+    out.append(f'-f "{cc} (-{amt})|{ch.cc_str(cc)}"')
+    if ch.get_cc(cc) == 0:
+     out.append(f'-f "{cc} now Depleted|You just expended the last use of your blade oil coated ammunitions.\n'
+        f'The custom counter for {cc} has been deleted, as well as the effect."')
+     ch.delete_cc(cc)
+     combat().me.remove_effect(cc)
+   out.append(f' -d{amt} 1d4[{dmg_type}]')
+   out.append((f'-f "{cc}|You can apply blade oil to a melee weapon or 6 pieces of ammunition as an action. '
+      f'Every attack made with that weapon or ammunition before the oil dries deals an extra 1d4 '
+      f'damage of that specific oil\'s damage type. The oil dries after 1 minute"'))
+  else:
+   ch.delete_cc(cc)
+   out.append((f'-f "{cc} has no more usages!|You had expended all uses of blade oil coated ammunitions.\n\n'
+      f'__**No extra damage has been applied to the current attack**__. You need to apply the extra '
+      f'1d4[{dmg_type}] damage manually if needed, and reducing the counter manually as well.\n'
+      f'If this is not an ammo usage (i.e., a blade usage), please delete the counter for future use."'))
+  return ' '.join(out)
+ else:
+  if dmg_type is None:
+   return (f'-f "Unknown Blade Oil effects|When using this snippet for a non-player character, you need to '
+     f'specify the damage type with `oilCold` or `oilFire` immediately after the `oil` snippet.\n'
+     f'__**No extra damage has been applied to the current attack**__. You need to apply the extra '
+     f'damage manually if needed.\n\n'
+     f'For example:\n`!i oa sprite shortbow -t ZO1 oil oilRadiant`"')
+  else:
+   out.append(f' -d 1d4[{dmg_type}]')
+   out.append((f'-f "Blade Oil ({dmg_type})|You can apply blade oil to a melee weapon or 6 pieces of ammunition as an action. '
+      f'Every attack made with that weapon or ammunition before the oil dries deals an extra 1d4 '
+      f'damage of that specific oil\'s damage type. The oil dries after 1 minute"'))
+   return ' '.join(out) 
+return (f' -f "{ch.name} is not in combat|This snippet only works when the in combat, and has the '
+  f'effect \\"Blade Oil (element)\\" active.\n\nCheck `!oil` alias for more Blade Oil automations."')
+</drac2>

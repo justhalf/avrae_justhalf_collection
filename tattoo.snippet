@@ -1,0 +1,51 @@
+-i <drac2>
+fs = []
+args = &ARGS&
+is_cast = ctx.alias == 'cast'
+if not is_cast: return ''
+spell_name = args[0]
+ch = character()
+
+# Find matching spell (to get the level)
+spell_list = load_json(get_gvar("d5119227-1b2e-449f-958d-761d3e56b0a8")).spells
+matches = [x for x in spell_list if spell_name.lower()==x.name.lower()]
+spell = None
+if matches:
+    spell = matches[0]
+else:
+    matches = [x for x in spell_list if spell_name.lower() in x.name.lower()]
+if len(matches) > 1:
+    fs.append(f'**__Multiple spell matches__**: Unable to automatically determine the spell\'s level, assuming level 0-2.')
+elif len(matches) == 1:
+    spell = matches[0]
+else:
+    fs.append(f'**__No spell matches__**: Unable to automatically determine the spell\'s level, assuming level 0-2.')
+spell_level = spell.level if spell else 2
+dc = ([13, 13, 13, 15, 15, 17, 17, 18, 18, 19])[spell_level]
+mod = dc-8-ch.stats.prof_bonus
+fs.insert(0, (f'You cast this spell without material components from a Spellwrought Tattoo.\n'
+              f'**Spell Level**: {spell_level if spell_level else "Cantrip"}\n'
+              f'**DC**: {dc}\n'
+              f'**Attack Bonus**: {dc-8}'))
+
+# Find matching CC
+matches = [cc.name for cc in ch.consumables if f'{spell_name.lower()} tattoo' == cc.name.lower()]
+cc_name = None
+if matches:
+    cc_name = matches[0]
+else:
+    matches = [cc.name for cc in ch.consumables if spell_name.lower() in cc.name.lower() and 'tattoo' in cc.name.lower()]
+if len(matches) > 1:
+    fs.append(f'**__Multiple CC matches__**: Unable to automatically reduce CC.')
+elif len(matches) == 1:
+    cc_name = matches[0]
+    if ch.get_cc(cc_name) < 1:
+        fs.append(f'**__Not enough usages__**: Not enough charges for \\"{cc_name}\\"\n{ch.cc_str(cc_name)}')
+    else:
+        ch.mod_cc(cc_name, -1)
+        fs.append(f'**{cc_name}**\n{ch.cc_str(cc_name)} (-1)')
+else:
+    fs.append(f'**__No CC matches__**: Unable to automatically reduce CC.')
+fs_s = '\n\n'.join(fs)
+return f'-f "Spellwrought Tattoo|{fs_s}" -dc {dc} -mod {mod}'
+</drac2>

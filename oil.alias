@@ -1,0 +1,234 @@
+<drac2>
+al_name = 'oil'
+footer = f'!{al_name} ? | Enter Ravenloft Blade Oil alias'
+
+using(jh='65a30ab9-540c-4bdf-86ce-7af4760604a9')
+jh.setup(
+        al_name=al_name,
+        footer=footer,
+        )
+using(bl=jh.LIB['baglib'])
+
+ch = character()
+
+args = &ARGS&
+if args and not args[0].startswith('-'):
+    el = args[0].lower().strip()
+else:
+    el = ''
+
+args = argparse(args)
+if args.get('h') or el.lower() in ['', '?', 'help']:
+    return jh.embed(
+        title='Blade Oil Alias Manual',
+        desc=(f'Applies Blade Oil with the specified element, with optional bag management.\n\n'
+              f'**Usage**:\n'
+              f'`!oil <element> [-i] [-type {{ammo,blade}}] [-bag <bagName>]* [-t <target>]*`\n\n'
+              f'`-bag`: Bag names can be provided to search only those bags.\n'
+              f'`-type`: specifies whether it\'s applied to ammo or blade. If it\'s ammo, a custom counter '
+              f'will be created to track the 6 ammunitions coated with this blade oil application. '
+              f'Defaults to `ammo`. Not used if targetting other combatants with `-t`.\n'
+              f'`-i`: will ignore bag management\n'
+              f'`-t <target>`: applies the Blade Oil effect to the specified target(s) instead. This will '
+              f'automatically ignore bag management.\n\n'
+              f'**Bag management**\n'
+              f'This alias will look for items named "Blade Oil (element)" or "element Blade Oil" in all '
+              f'your bags. If you specify bag names with `-bag`, it will only search those bags.\n\n'
+              f'**In Combat**\n'
+              f'In combat, this alias will apply the effect "Blade Oil (element)" to the active character. '
+              f'You can then use the __snippet `oil`__ when attacking to automatically apply the extra damage, '
+              f'as well as the ammunition tracking.\n'
+              f'If you have multiple blade oil effects, when using the snippet you can also add `oilRadiant` or '
+              f'`oilFire` immediately after `oil` to choose which element you are using with that attack, for example:\n'
+              f'`!a longsword -t ZO1 oil oilCold`"'),
+        f_thumb=False,
+        )
+
+# Canonical blade oil name, also used for CC
+item_name = f'Blade Oil ({el})'
+
+# Defines the output embed `out`
+out = {}
+fs = []
+out['fields'] = fs
+warns = []
+
+ignore_bag = args.get('i', False)
+# Targets
+ts = args.get('t', [])
+if ts:
+    # Any target specified: ignore bag
+    ignore_bag = True
+    has_target = True
+else:
+    has_target = False
+uniq, mult, none = jh.resolve_targets(ts)
+if mult:
+    mult_s = '\n* '.join(['']+[f'{t}: {", ".join(comb.name for comb in combs)}' for t, combs in mult])
+    warns.append({'title':'Some targets have multiple matches',
+                  'body':f'The following targets have multiple matches:\n{mult_s}',
+                  })
+if none:
+    none_s = '\n* '.join(['']+[t for t, _ in none])
+    warns.append({'title':'Some targets have no matches',
+                  'body':f'The following targets have no matches:\n{none_s}',
+                  })
+if has_target and (mult or none):
+    out['title'] = 'Fail to apply blade oil to targets!'
+    out['desc'] = (f'Some targets specified, but no valid targets found or they have multiple matches. '
+                   f'Nothing has been done.\n'
+                   f'If you want to apply the blade oil effect to yourself, no need to specify targets. '
+                   f'Simply run:\n'
+                   f'`!{al_name} <element>`')
+    fs.extend(warns)
+    return jh.embed(**out, f_thumb=False)
+
+apply_type = args.last('type', 'ammo').lower()
+if apply_type not in ['ammo', 'blade']:
+    fs.append({'title':'Invalid application type',
+               'body':(f'`{apply_type}` is not a valid application type. '
+                       f'Choose either `ammo` or `blade`. Defaulting to `ammo` now.\n'
+                       f'To use as non-ammo, simply remove the custom counter by running:\n'
+                       f'`!cc delete "{item_name}"`')
+               })
+    apply_type = 'ammo'
+
+bag_names = args.get('bag',[])
+bags = bl.load_bags()
+has_names = True
+cur_bags = []
+if bag_names:
+    # Convert to canonical bag names, ignoring bags not found
+    for bag_name in bag_names:
+        bag = bl.get_bag(bags, bag_name)
+        if bag:
+            cur_bags.append(bag)
+if not bag_names:
+    has_names = False
+    cur_bags = [bag for bag in bags] # Deep copy
+
+def take_blade_oil(bag, el):
+    for cur_item, count in bag[1].items():
+        # If matches '<element> Blade Oil' or 'Blade Oil (<element>)' ignoring case
+        # Should not match 'Mats for Radiant Blade Oil' or 'Blade Oil Cold mats' or others
+        # Ok to accept punctuations like 'Blade Oil - <element>` or 'Blade Oil: <element>'
+        words = [w for w in cur_item.split(' ') if len(w) > 2]
+        if len(words) != 3:
+            continue
+        if cur_item.lower().startswith('blade oil'):
+            cur_el = words[2].lower()
+            if cur_el[0] == '(' and cur_el[-1] == ')':
+                cur_el = cur_el.strip('()')
+            if el and el != cur_el:
+                continue
+            if count >= 1:
+                bag[1][cur_item] -= 1
+            else:
+                continue
+            return cur_item, cur_el
+        if cur_item.lower().endswith('blade oil'):
+            cur_el = words[0].lower()
+            if el and el != cur_el:
+                continue
+            if count >= 1:
+                bag[1][cur_item] -= 1
+            else:
+                continue
+            return cur_item, cur_el
+    return None, None
+
+found_bag = None
+found_item = None
+missed_bags = []
+if not ignore_bag:
+    for bag in cur_bags:
+        blade_oil, cur_el = take_blade_oil(bag, el)
+        if blade_oil:
+            found_bag = bag
+            found_item = blade_oil
+            break
+        else:
+            if has_names:
+                missed_bags.append(bag[0])
+
+if ignore_bag or found_item:
+    if not has_target:
+        out['title'] = f'{jh.ch_name()} applies {item_name}!'
+    elif len(uniq) == 1:
+        out['title'] = f'{uniq[0][1][0].name} applies {item_name}!'
+    else:
+        out['title'] = f'Multiple targets apply {item_name}!'
+    out['desc'] = (f'These fine oils are made by skilled alchemists. '
+                   f'Some are said to be made from the spit of dragons, others from the blood of angels. '
+                   f'A given flask of blade oil is associated with one damage type, based on the materials used. '
+                   f'You can apply blade oil to a melee weapon or 6 pieces of ammunition as an action.\n\n'
+                   f'Every attack made with that weapon or ammunition before the oil dries deals an extra 1d4 '
+                   f'damage of that specific oil\'s damage type.')
+    if not ignore_bag:
+        for bag in bags:
+            if bag[0] == found_bag[0]:
+                bag[1] = found_bag[1]
+        bl.save_bags(bags)
+        fs.append({'title':'Bag Management',
+                   'body':f'Removed "{found_item}" x1 from **{found_bag[0]}**',
+                   })
+    else:
+        fs.append({'title':'Bag Management',
+                   'body':f'`-i` supplied or targets specified, bag management ignored.',
+                   })
+
+    if not has_target and apply_type == 'ammo':
+        cc_op_title = ''
+        if ch.cc_exists(item_name):
+            counter = ch.cc(item_name)
+            counter.mod(6)
+            cc_op_title = f'Updated counter: {counter.name}'
+        else:
+            counter = ch.create_cc(item_name, 0, initial_value=6,
+                                     desc=f'{item_name} applied to ammo. Lasts 1 minute.')
+            cc_op_title = f'Created counter: {counter.name}'
+        fs.append({'title':cc_op_title,
+                   'body':(f'{counter.desc}\n{counter.full_str()}\n'
+                           f'__**Note**__: If you intended this to not be ammo, you can delete this CC with '
+                           f'`!cc delete "{counter.name}"`'),
+                   })
+
+    if not has_target:
+        if combat() and combat().me:
+            combat().me.add_effect(item_name, duration=10)
+            fs.append({'title':'Effect',
+                       'body':f'Added effect {item_name} to {combat().me.name} [1 minute]',
+                       })
+    else:
+        eff = []
+        for t, [comb] in uniq:
+            comb.add_effect(item_name, duration=10)
+            eff.append(f'Added effect {item_name} to {comb.name} [1 minute]')
+        eff_s = '\n'.join(eff)
+        fs.append({'title':'Effect',
+                   'body':eff_s})
+
+    fs.append({'title':'Snippet: `oil`',
+               'body':(f'You can now use the `oil` snippet to apply the extra 1d4 damage.\n'
+                       f'The damage type will be automatically read from the effect, as long as the effect is named '
+                       f'"Blade Oil (<damage type here>)"\n'
+                       f'If you have multiple blade oil effects, when using the snippet you can also add `oilRadiant` '
+                       f'or `oilFire` immediately after `oil` to choose which element you are using with that attack, '
+                       f'for example:\n'
+                       f'`!a longsword -t ZO1 oil oilCold`'),
+               })
+else:
+    out['title'] = f'{jh.ch_name()} does not have any {item_name} to apply!'
+    out['desc'] = f'Specify `-i` to ignore bag management\nRun `!oil help` for more info'
+    fs.append({'title':'Error',
+               'body':(f'No items named "{el.title()} Blade Oil" or "Blade Oil ({el.lower()})" found in '
+                       f'the specified bags.'),
+               })
+    if has_names:
+        fs.append({'title':'Error',
+                   'body':(f'The bag{"s" if len(missed_bags)>1 else ""} {", ".join(missed_bags)} '
+                           f'do{"es" if len(missed_bags)==1 else ""} not contain {item_name}'),
+                   })
+
+return jh.embed(**out, f_thumb=False)
+</drac2>

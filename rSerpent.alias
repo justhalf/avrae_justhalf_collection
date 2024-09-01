@@ -1,0 +1,160 @@
+<drac2>
+al_name = 'rSerpent'
+footer = f'!{al_name} ? | Robe of Serpents automation'
+
+using(jh='65a30ab9-540c-4bdf-86ce-7af4760604a9')
+jh.setup(
+        al_name=al_name,
+        footer=footer,
+        )
+
+ch = character()
+
+args = &ARGS&
+
+# Alias begins here
+
+emb_help = {
+        'title':'Robe of Serpents Manual',
+        'desc':(f'A robe of serpents is a stylish silk garment that is popular among wealthy nobles and retired '
+                f'assassins. The robe is emblazoned with 1d4 + 3 stylized serpents, all brightly colored.\n\n'
+                f'As a bonus action on your turn, you can transform one of the robe\'s serpents into a giant '
+                f'poisonous snake. The snake instantly falls from the robe, slithers into an unoccupied space next to '
+                f'you, and acts on your initiative count. The snake can tell friendly creatures from hostile ones and '
+                f'attacks the latter. The snake disappears in a harmless puff of smoke after 1 hour, when it drops to '
+                f'0 hit points, or when you dismiss it (no action required). Once detached, a snake can\'t return to '
+                f'the robe. When all of the robe\'s snakes have detached, the robe becomes a nonmagical garment.'),
+        'fields':[
+            {'title':'Usage',
+             'body':(f'`!{al_name} <location> <otherInitArgs>`\n'
+                     f'* Specify a location to actually summon a snake on that location. Other init arguments, such '
+                     f'as `-name`, `-group`, and `-p` can also be supplied. It will be passed along to the `!madd` '
+                     f'command.\n'
+                     f'* Special interaction with `-h`: by default, this alias will unhide the stats. '
+                     f'You can undo this by specifying `-h` to this alias, which will make the stats hidden.\n'
+                     f'* Special interaction with `-group`: by default, this alias will assign the snake into the '
+                     f'group as your active character (if in combat). If you specify `-group` and your active '
+                     f'character is not in any group, it will be assigned to that group.\n\n'
+                     f'This alias uses the CC "Robe of Serpents" to detect whether you still have enough snakes.'),
+             },
+            ],
+        }
+if not args or args[0] in ['?', 'help']:
+    return jh.embed(**emb_help)
+
+loc = args[0].upper()
+
+hidden = '-h' in args
+args = [arg for arg in args if arg != '-h']
+group = None
+init = None
+idx = 0
+while idx < len(args):
+    arg = args[idx]
+    if arg == '-group':
+        if idx+1 < len(args):
+            group = args[idx+1]
+            args = args[:idx]+args[idx+2:]
+        idx -= 1
+    if arg == '-p':
+        if idx+1 < len(args):
+            init = int(args[idx+1])
+            args = args[:idx]+args[idx+2:]
+        idx -= 1
+    idx += 1
+
+def is_loc(loc):
+    letters = 'ABCDEFGHIJKLMNOPQRSTUVWYZ'
+    numbers = '0123456789'
+    if loc[0] not in letters: return False
+    first = True
+    for c in loc[1:]:
+        if first:
+            if c in numbers:
+                first = False
+            elif c not in letters:
+                return False
+        else:
+            if c not in numbers:
+                return False
+    return not first 
+
+if not is_loc(loc):
+    emb_help['fields'].append({'title':'Error','body':f'You must specify a location. Found instead: `{loc}`'})
+    return jh.embed(**emb_help)
+
+cc_name = 'Robe of Serpents'
+if not ch.cc_exists(cc_name):
+    return jh.embed(
+        title=f'{jh.C[jh.CH_NAME]} has not set up Robe of Serpents CC!',
+        desc=(f'You can set it up by rolling 1d4+3, and call `!cc create "{cc_name}" -min 0 -max <number> '
+              f'-type bubble -reset none`'),
+        )
+if ch.get_cc(cc_name) == 0:
+    return jh.embed(
+        title=f'{jh.C[jh.CH_NAME]} no longer have snakes on their Robe of Serpents!',
+        desc=f'There are no more snakes on your robe.\n\n**{cc_name}**\n{ch.cc_str(cc_name)}',
+        )
+
+# Reduce CC
+ch.mod_cc(cc_name, -1)
+cc_str = f'{ch.cc_str(cc_name)} (-1)'
+
+co = combat()
+if not co or not co.me:
+    return jh.embed(
+        title=f'{jh.C[jh.CH_NAME]} summons a Giant Poisonous Snake from Robe of Serpents!',
+        desc=emb_help['desc'],
+        fields=[
+            {'title':cc_name,
+             'body':cc_str,
+             },
+            {'title':'Warning',
+             'body':'You are not in initiative, no actual snake was summoned into combat.',
+             }
+            ],
+        )
+
+cur_group = None
+for co_group in co.groups:
+    if co_group.get_combatant(co.me.name):
+        cur_group = co_group.name
+if not group:
+    group = cur_group
+if not group:
+    group = 'Me and My Summons'
+
+if cur_group is None:
+    my_name = co.me.name.replace('"','\\"')
+    add_group_s = f'!i opt "{my_name}" -group "{group}"'
+else:
+    add_group_s = None
+
+if init is None:
+    init = co.me.init
+
+madd_args = [arg.replace('"', '\\"') for arg in args[1:]]
+madd_args = [f'"{arg}"' for arg in madd_args]
+madd_args = ' '.join(madd_args+['-h']*(not hidden)+[f'-p {init}']+[f'-group "{group}"'])
+emb_out = jh.embed(
+    title=f'{jh.C[jh.CH_NAME]} summons a Giant Poisonous Snake from their Robe of Serpents!',
+    desc=emb_help['desc'],
+    fields=[
+        {'title':'Giant Poisonous Snake summoned!',
+         'body':f'Location: {loc}\nGroup: {group}\nInitiative: {init}',
+         },
+        {'title':cc_name,
+         'body':cc_str,
+         },
+        ],
+    )
+ml_commands = ['multiline',
+       f'!i madd "Giant Poisonous Snake" {madd_args} -note "Color: b (blue) | Location: {loc}"',
+       f'!{emb_out}',
+       ]
+if add_group_s:
+    ml_commands.insert(1, add_group_s)
+out = '\n'.join(ml_commands)
+return out
+</drac2>
+

@@ -1,0 +1,296 @@
+# GVAR: daeedde7-2ae9-4c92-9924-091d763ce6f3
+# Module: dt (datetime)
+# Common tools for date and time processing using the time() function
+# to_date(epoch, timezone=0, calendar='GREGORIAN'):
+#   Convert epoch from time() into date based on the calendar
+
+datetime_config = load_json(get_svar('datetimeConfig', '{}'))
+DEFAULT_CALENDAR_GVAR = datetime_config.get('calendar_gvar', '15b08c42-043d-4d58-a2e7-3bedbcfc5fac')
+
+YEAR_START = int(datetime_config.get('year_start', '1970')) # the first year
+MONTH_START = int(datetime_config.get('month_start', '1')) # the first month
+DAY_START = int(datetime_config.get('day_start', '1')) # the first day
+WEEKDAY_START = int(datetime_config.get('weekday_start', '3')) # the first weekday
+MOON_START = int(datetime_config.get('moon_start', 0)) # the first moon phase
+
+HOURS_IN_DAY = int(datetime_config.get('hours_in_day', '24')) # how many hours in a day
+MINUTES_IN_HOUR = int(datetime_config.get('minutes_in_hour', '60')) # how many minutes in an hour
+SECS_IN_MINUTE = int(datetime_config.get('secs_in_minute', '60')) # how many seconds in a minute
+MINUTES_IN_DAY = HOURS_IN_DAY * MINUTES_IN_HOUR
+SECS_IN_HOUR = MINUTES_IN_HOUR * SECS_IN_MINUTE
+SECS_IN_DAY = HOURS_IN_DAY * SECS_IN_HOUR
+
+WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+TIMEZONES = [-12, -11, -10, -9.5, -9, -8, -7, -6, -5, -4, -3.5, -3, -2, -1, 0,
+             1, 2, 3, 3.5, 4, 4.5, 5, 5.5, 5.75, 6, 6.5, 7, 8, 8.75, 9, 9.5, 10, 10.5, 11, 12, 12.75, 13, 14]
+
+DISCORD_TIME_FLAGS = {
+        'SHORT': 't',
+        'LONG': 'T',
+        'DATE': 'd',
+        'DATE_LONG': 'D',
+        'SHORT_DATE_TIME': 'f',
+        'LONG_DATE_TIME': 'F',
+        'RELATIVE': 'R',
+        }
+
+CALENDAR_GVARS = {
+        'FAERUN': '99b628a0-bbc5-4f24-8e72-a18a6b26809d',
+        'GREGORIAN': '15b08c42-043d-4d58-a2e7-3bedbcfc5fac',
+        'EBERRON': '88dbcae4-4381-4457-b3ea-6d0a883c5cb6',
+        }
+
+CALENDARS = {}
+for calendar_name, gvar in CALENDAR_GVARS.items():
+    try:
+        calendar = load_json(get_gvar(gvar))
+    except:
+        continue
+    CALENDARS[calendar_name] = calendar
+try:
+    DEFAULT_CALENDAR = load_json(get_gvar(DEFAULT_CALENDAR_GVAR))
+except:
+    DEFAULT_CALENDAR = CALENDARS['GREGORIAN']
+
+DEBUG_UVAR = 'datetimeDebug'
+
+def get_calendar(calendar=None):
+    if calendar is None:
+        calendar = DEFAULT_CALENDAR
+    try:
+        calendar.find
+        # calendar is a str
+        if calendar not in CALENDARS:
+            set_uvar(DEBUG_UVAR, f'Calendar {calendar} not found')
+            return None
+        calendar = CALENDARS[calendar]
+    except:
+        # calendar is hopefully a dict representing a valid calendar
+        pass
+    if ('length' not in calendar or
+        'name' not in calendar or
+        'moon' not in calendar or
+        'moonCycle' not in calendar or
+        'seasons' not in calendar or
+        'months' not in calendar):
+        set_uvar(DEBUG_UVAR, (f'Calendar must be a dictionary containing "length", "name", "moon", "moonCycle", '
+                              f'"season", and "months", or one of the following strings: '
+                              f'{", ".join(CALENDARS.keys())}'))
+        return None
+    return calendar
+
+def get_timezone():
+    timezone = float(get_uvar('timezone', '0'))
+    while timezone > 14: timezone -= 24
+    while timezone < -12: timezone += 24
+    min_diff = 99
+    min_tz = None
+    for tz in TIMEZONES:
+        diff = abs(tz-timezone)
+        if diff < min_diff:
+            min_diff = diff
+            min_tz = tz
+    return min_tz
+
+def is_leap_year(year, calendar=None):
+    if calendar is None:
+        calendar = DEFAULT_CALENDAR
+    calendar = get_calendar(calendar)
+    months = calendar['months']
+    if 'leapCycle' in calendar:
+        leap_cycles = [int(str(v)) for v in calendar['leapCycle'].split(';')]
+    else:
+        leap_cycles = []
+    result = False
+    for idx, leap_check in enumerate(leap_cycles):
+        if idx % 2 == 0:
+            if year % leap_check != 0:
+                result = False
+                break
+            else:
+                result = True
+        else:
+            if year % leap_check != 0:
+                result = True
+                break
+            else:
+                continue
+    return result 
+
+def leap_extra_days(calendar=None):
+    if calendar is None:
+        calendar = DEFAULT_CALENDAR
+    calendar = get_calendar(calendar)
+    months = calendar['months']
+    days_in_month_leap = [m.get('lengthLeap',m['length']) for m in months]
+    days_in_month_norm = [m['length'] for m in months]
+    result = sum(days_in_month_leap)-sum(days_in_month_norm)
+    return result
+
+def today(fmt='%d %B %Y', calendar=None):
+    # fmt = '%Y-%m-%d'
+    # fmt = '%d %B %Y'
+    date_obj = to_date(calendar=calendar)
+    repdict = {'%Y':f'{date_obj["year"]}',
+               '%m':f'{date_obj["month"]:02d}',
+               '%d':f'{date_obj["day"]:02d}',
+               '%B':date_obj['month_s'],
+               '%b':date_obj['month_s'][:3],
+               }
+    for k, v in repdict.items():
+        fmt = fmt.replace(k, v)
+    return fmt
+
+def now(fmt='%H:%M:%S', calendar=None):
+    # fmt = '%H:%M:%S' -> 20:04:03
+    # fmt = '%I:%m:%s %p' -> 08:04:03 PM
+    date_obj = to_date(calendar=calendar)
+    repdict = {'%H':f'{date_obj["hour"]:02d}',
+               '%M':f'{date_obj["minute"]:02d}',
+               '%S':f'{date_obj["second"]:02d}',
+               '%I':f'{(date_obj["hour"]-1)%12+1:02d}',
+               '%p':f'{"PM" if date_obj["hour"]>11 else "AM"}',
+               }
+    for k, v in repdict.items():
+        fmt = fmt.replace(k, v)
+    return fmt
+
+def to_date(s_time=None, timezone=None, calendar=None):
+    """Converts the given time (or current time if not given) to current date"""
+    if s_time is None:
+        s_time = time()
+    if calendar is None:
+        calendar = DEFAULT_CALENDAR
+    if timezone is None:
+        timezone = get_timezone()
+
+    calendar = get_calendar(calendar)
+    year_length = calendar['length']
+    calendar_name = calendar['name']
+    moons = calendar['moon']
+    # moon_cycle = [float(str(v)) for v in str(calendar['moonCycle']).split(';')]
+    moon_cycle = calendar['moonCycle']
+    seasons = calendar['seasons']
+    months = calendar['months']
+    if 'leapCycle' in calendar:
+        leap_cycles = [int(str(v)) for v in str(calendar['leapCycle']).split(';')]
+    else:
+        leap_cycles = []
+    weekdays = calendar.get('weekdays', WEEKDAYS)
+
+    s_time = s_time + int(SECS_IN_HOUR * timezone)
+    day_count = int(s_time // SECS_IN_DAY)  # 0-indexed
+    year = YEAR_START
+    month = MONTH_START
+    day = DAY_START
+    moon_phase = moons[int((((day_count-1) // moon_cycle) + MOON_START) % len(moons))]
+
+    weeklen = len(weekdays)
+    day_in_week = (day_count + WEEKDAY_START) % weeklen
+
+    extra_days = leap_extra_days(calendar)
+    while True:
+        is_leap = is_leap_year(year, calendar)
+        if day_count < year_length + extra_days:
+            break
+        if is_leap:
+            day_count -= year_length + extra_days
+        else:
+            day_count -= year_length
+        year += 1
+
+    days_in_year = day_count
+
+    # Count the season
+    season = None
+    for s in seasons:
+        if s['start'] <= day_count <= s['end']:
+            season = s['name']
+            break
+
+    # Count the months
+    for m in months:
+        month_length = m['length']
+        if is_leap:
+            month_length = m.get('lengthLeap', month_length)
+        if day_count >= month_length:
+            day_count -= month_length
+            month += 1
+        else:
+            month_name = m['name']
+            holidays = m['holidays']
+            break
+
+    # Store holidays happening today (can support multiple holidays in one day)
+    cur_holidays = []
+    day += day_count
+    for holiday in holidays:
+        if holiday['day'] == day:
+            cur_holidays.append(holiday['name'])
+
+    # Calculate the time
+    hour=int(s_time % SECS_IN_DAY // SECS_IN_HOUR)
+    minute=int(s_time % SECS_IN_DAY % SECS_IN_HOUR // SECS_IN_MINUTE)
+    second=int(s_time % SECS_IN_DAY % SECS_IN_HOUR % SECS_IN_MINUTE)
+
+    return {
+            'year':year,
+            'month':month,
+            'day':day,
+            'hour':hour,
+            'minute':minute,
+            'second':second,
+            'days_in_year':days_in_year,
+            'day_in_week':day_in_week,
+            'day_in_week_s':weekdays[day_in_week],
+            'month_s':month_name,
+            'moon_phase': moon_phase,
+            'season': season,
+            'holidays': cur_holidays,
+            }
+
+def to_epoch(date, timezone=None, calendar=None):
+    if calendar is None:
+        calendar = DEFAULT_CALENDAR
+    if timezone is None:
+        timezone = get_timezone()
+
+    year = date.get('year', YEAR_START)
+    month = date.get('month', 1)
+    day = date.get('day', 1)
+    hour = date.get('hour', 0) - timezone
+    minute = date.get('minute', 0)
+    second = date.get('second', 0)
+
+    calendar = get_calendar(calendar)
+
+    year_length = calendar['length']
+    extra_days = leap_extra_days(calendar)
+    day_count = 0
+    for y in range(YEAR_START, year):
+        is_leap = is_leap_year(y, calendar)
+        if is_leap:
+            day_count += year_length + extra_days
+        else:
+            day_count += year_length
+    is_leap = is_leap_year(year, calendar)
+
+    # Add the full months
+    for m in calendar['months'][:month-1]:
+        month_length = m['length']
+        if is_leap:
+            month_length = m.get('lengthLeap', month_length)
+        day_count += month_length
+    # Add the day
+    day_count += day-1
+
+    s_time = (SECS_IN_DAY * day_count
+              + int(SECS_IN_HOUR * hour)
+              + SECS_IN_MINUTE * minute
+              + second)
+    return s_time
+
+def to_discord(s_time, flag='RELATIVE'):
+    flag = DISCORD_TIME_FLAGS[flag]
+    return f'<t:{s_time}:{flag}>'

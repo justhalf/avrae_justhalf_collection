@@ -1,0 +1,839 @@
+<drac2>
+al_name = 'potion'
+footer = f'!{al_name} ? | Potion Alias by justhalf'
+
+using(jh='65a30ab9-540c-4bdf-86ce-7af4760604a9')
+using(dicelib='32d70259-223e-4fe1-8303-dbaa8189e859')
+using(sublib='9f664e12-57e2-451b-9792-a733625b2e6b')
+jh.setup(
+        al_name=al_name,
+        footer=footer,
+        )
+sublib.setup(
+        base_name='potion',
+        sub_name='sub',
+        unsub_name='unsub',
+        default_var='subbed_potions',
+        default_subs={
+            '0990d563-9217-4faf-ac46-4f72dc9159b7': {'source':'BS', 'name':'''Basic Rules (2014)'''},
+            },
+        sources=None,
+        )
+subbed_gvars = sublib.user_data['subbed_gvars']
+
+def escape(v):
+    return v.replace('"', '\\"')
+
+ch = character()
+
+args = &ARGS&
+p_args = argparse(args)
+
+co = combat()
+
+al_desc = (f'__**Usage**__:\n'
+           f'`!{al_name} <potion name> (-t target)* (-choice option) (-rr n) (nobag) (-bag bagName) '
+           f'(-dur <duration>) (max/sadv/sdis) (-d <dmg dice>)`\n'
+           f'* Administer the named potion to self, or to target(s) if specified\n'
+           f'* `-choice option` to configure the potion (for example, `-choice grease` for Oil of Slipperiness)\n'
+           f'* `-rr n` to apply the potions multiple times (for example, for Potion of Healing)\n'
+           f'* `nobag` to ignore bag management\n'
+           f'* `-bag bagName` to prioritize `bagName` when looking for matching potions\n'
+           f'* `-dur <duration>` to override the default duration. Accepts dice string as well.\n'
+           f'* `max` to maximize healing/damage (e.g., for Gift of the Ever-Living Ones warlock invocations)\n'
+           f'* `sadv/sdis` to give adv/dis to saving throws (e.g., Potion of Poison)\n'
+           f'* `-d <dmg_dice>` to add more damage (if positive) or healing (if negative)\n'
+           f'* `nomap` to not handle map (e.g., Potion of Growth and Diminution changing size)\n\n'
+           f'`!{al_name} info <potion name>`\n'
+           f'* Describes the potion and the available options for `-choice`\n\n'
+           f'`!{al_name} list`\n'
+           f'* Lists all supported potions that you have subscribed (see `!potion sub` for more)\n\n'
+           f'`!{al_name} setup (potion name optional) (same args as using it)`\n'
+           f'* Sets up a default arguments for a specific potion (if provided) or for all potions otherwise\n'
+           f'* This setting is per-character\n\n'
+           f'To default to not using bag management, you can do `!cvar potionNobag 1` (and you can undo it by '
+           f'doing `!cvar remove potionNobag`).\n\n'
+           f'__Example__\n'
+           f'`!{al_name} heal -rr 3` to drink 3 Potion of Healing\n'
+           f'`!{al_name} grow -t Alex` to feed Potion of Growth to Alex\n'
+           f'`!{al_name} slip -choice free` to apply Oil of Slipperiness to gain Freedom of Movement spell effect'
+           )
+
+if not args or args[0] in ['?', 'help']:
+    return jh.embed(
+        title=f'{ch.name} wants to drink a potion!',
+        desc=al_desc,
+        )
+
+stat_map = {
+        'str': 'strength',
+        'dex': 'dexterity',
+        'con': 'constitution',
+        'int': 'intelligence',
+        'wis': 'wisdom',
+        'cha': 'charisma',
+        }
+size_map = {
+        'T': 'Tiny',
+        'S': 'Small',
+        'M': 'Medium',
+        'L': 'Large',
+        'H': 'Huge',
+        'G': 'Gargantuan',
+        }
+
+fs = []
+warns = []
+errs = []
+
+def force_json(v, default):
+    try:
+        return [item for item in load_json(v) if item is not None]
+    except:
+        if v:
+            warns.append({'title':'Invalid Homebrew GVar :warning:',
+                          'body':(f'Invalid gvar address:\n{invalid_gvars}\n\n'
+                                  f'Check `!svar {hb_var}` and `!uvar {hb_var}`')})
+        return default
+
+potions_by_name = {}
+for gvar, sub_data in subbed_gvars.items():
+    cur_potions = load_json(get_gvar(gvar) or '[]')
+    for potion in cur_potions:
+        potion_name = potion['name'].lower()
+        if potion_name not in potions_by_name:
+            potions_by_name[potion_name] = []
+        potions_by_name[potion_name].append((potion, 'Subscription'))
+
+hb_var = 'potionHomebrew'
+hb_subdatas = force_json(get_svar(hb_var), []) + [None] + force_json(get_uvar(hb_var), [])
+hb_potions = []
+invalid_gvars = []
+default_source = f'{ctx.guild.name} Homebrew'
+for hb_subdata in hb_subdatas:
+    if hb_subdata is None:
+        default_source = f'{ctx.author.display_name} Homebrew'
+        continue
+    # hb_subdata can be a string representing gvar, or a dict representing a potion directly
+    if typeof(hb_subdata) == 'str':
+        # Is a gvar
+        gvar = hb_subdata
+        if gvar in subbed_gvars:
+            # This gvar is already subscribed to
+            continue
+        try:
+            _hb_potions = load_json(get_gvar(gvar) or '[]') or []
+            hb_potions.extend([(hb_potion, gvar.split('-')[0]) for hb_potion in _hb_potions])
+        except:
+            invalid_gvars.append(gvar)
+            continue
+    else:
+        hb_potion = hb_subdata
+        hb_potions.append((hb_potion, default_source))
+
+# List of homebrew potions is stored in hb_potions, add them and disambiguate with the source
+invalid_potions = []
+for potion, source in hb_potions:
+    try:
+        idx = 0
+        ignore = False
+        potion_name = potion['name'].lower()
+        if potion_name in potions_by_name:
+            for p, p_source in potions_by_name[potion_name]:
+                if p == potion:
+                    # Exactly same as existing potion, ignore
+                    ignore = True
+                    break
+        else:
+            potions_by_name[potion_name] = []
+        if not ignore:
+            potions_by_name[potion_name].append((potion, source))
+    except:
+        invalid_potions.append(potion)
+
+potions = []
+for name, potions_same_name in potions_by_name.items():
+    for idx, (p, p_source) in enumerate(potions_same_name):
+        if len(potions_same_name) > 1:
+            # Disambiguate if more than one potions having the same name
+            p['name'] = f'{p["name"]} [{idx}-{p_source}]'
+            if 'aliases' in p:
+                p['aliases'] = [f'{alias} [{idx}-{p_source}]' for alias in p['aliases']]
+        potions.append(p)
+if invalid_gvars:
+    invalid_gvars_s = '\n* '.join(invalid_gvars)
+    warns.append({'title':'Invalid Homebrew GVar :warning:',
+                  'body':f'Invalid gvar address:\n{invalid_gvars}\n\nCheck `!svar {hb_var}` and `!uvar {hb_var}`'})
+if invalid_potions:
+    invalid_potions_s = [dump_json(potion) for potion in invalid_potions]
+    invalid_potions_s = '\n* '.join(['']+[pot_s[:30] if len(pot_s)<=30 else f'{pot_s[:30]}...'
+                                          for pot_s in invalid_potions_s])
+    warns.append({'title':'Invalid Homebrew Potion :warning:',
+                  'body':f'One or more of your homebrew potions has an invalid format:\n{invalid_potions_s}'})
+
+### Begin argument parsing ###
+
+arg_config = {'-d':True, '-t':True, '-choice':True, '-rr':True, '-h':True, 'nobag':False, '-bag':True,
+              'sadv':False, 'sdis':False, 'max':False, '-dur':True, 'nomap':False}
+
+config_cvar = 'potionSettings'
+c_config = load_json(ch.get_cvar(config_cvar, '{}'))
+do_setup = False
+do_info = False
+if args[0] == 'list':
+    p_list = '\n* '.join([(f'Here is the list of potions you subscribed to. '
+                           f'Use `!{al_name} info <potion name>` to read more about each potion.')]+
+                          [f'{potion["name"]}{" ("+potion["source"]+")" if "source" in potion else ""}'
+                           for potion in potions])
+    return jh.embed(
+        title=f'{ch.name} browses the available potion list!',
+        desc=p_list,
+        fields=warns,
+        )
+elif args[0] == 'setup':
+    do_setup = True
+    args = args[1:]
+    if not args:
+        # Only call to setup, show the current config
+        s_setup = []
+        for _potion, _config in c_config.items():
+            s_config = ' '.join(f'"{escape(v)}"' for v in _config)
+            s_setup.append(f'{_potion}: `{s_config}`')
+        if not s_setup:
+            s_setup = f'You do not have any existing potion setup. Start one with `!{al_name} setup <args>`.'
+        else:
+            s_setup = '\n* '.join(['Current potion setup:']+s_setup)
+        return jh.embed(
+            title=f'{ch.name} looks at their potion setup!',
+            desc=s_setup,
+            )
+    elif args[0] in ['?', 'h', 'help']:
+        desc = (f'## For players:\n'
+                f'`!{al_name} setup <args>`\n'
+                f'* You can setup some common arguments for each potion that will automatically applied when you '
+                f'use that potion. You can also specify global arguments which apply to all potions by specifying '
+                f'an empty potion `""`, like so:\n'
+                f'  `!{al_name} setup "" [args]`\n\n'
+                f'__Examples__'
+                f'* After you setup\n'
+                f'  `!{al_name} setup slipperi -choice freedom`\n'
+                f'  you can simply run `!{al_name} slipper` and it will automatically choose the Freedom of Movement '
+                f'version of the Oil of Slipperiness\n'
+                f'* For global setting to not use OTFBM map (used in Potion of Growth/Diminution), you can do:\n'
+                f'  `!{al_name} setup "" nomap`\n\n'
+                f'## For server admins:\n'
+                f'You can have a default server-wide list of potions, available to all players in the server.\n'
+                f'The potion list is stored in the svar `{hb_var}`, containing a list. Each item in the list can '
+                f'be a GVar address, or a JSON object describing a single potion.\n\n'
+                f'To see how to format the potion object for a homebrew potion, see `!{al_name} hb`')
+        return jh.embed(
+            title='Potion Setup Manual',
+            desc=desc,
+            )
+elif args[0] == 'info':
+    do_info = True
+    args = args[1:]
+    if not args:
+        return jh.embed(
+            title=f'{ch.name} tries to read potion info!',
+            desc=f'Potion name missing.\n\n**__Usage__**\n`!{al_name} info <potion name>`',
+            fields=warns,
+            )
+elif args[0] == 'hb':
+    return jh.embed(
+        title=f'{ch.name} reads how to homebrew a potion!',
+        desc=get_gvar('32431f7e-684a-4e05-b0ad-efa6ab0fa938'),
+        fields=warns,
+        )
+
+k_args, l_args = jh.take_args(args, arg_config)
+if len(l_args) == 0 and not do_info:
+    # The input must have been `!{al_name} setup <some valid args but no potion name>`
+    # (if it were no setup and no arg, it would have been caught earlier, printing help message)
+    # It's possible to consider this as setting up the global, but this would be prone to error
+    # If user assumes they can simply do `!{al_name} setup <args>`, then when they mistyped an argument (e.g., rr)
+    # and the mistyped argument happens to match a potion name, the config of that potion would be overridden
+    # Add in the fact that setup will be rarely run, users will be unfamiliar, so to err on the side of caution, we
+    # returns a warning here instead of continuing
+    warns.append({'title':'Warning :warning:',
+                  'body':(f'You seem to attempt to set up a global config since no potion name was provided. '
+                          f'In that case, please use `""` (two double quotes) as the potion name.')})
+    return jh.embed(
+        title=f'{ch.name} wants to setup a potion!',
+        desc=al_desc,
+        fields=warns,
+        )
+if l_args != args[:len(l_args)] and not do_info:
+    # Locational arguments should always come before other arguments, if not, returns error
+    # The matching initial arguments are assumed to be intended as potion name
+    # So, print from the first not matching one
+    # Multiple locational arguments is supported so that the potion name can be specified without quotes
+    first_idx_nomatch = 0
+    while first_idx_nomatch < min(len(l_args), args[:len(l_args)]):
+        if l_args[first_idx_nomatch] != args[first_idx_nomatch]: break
+        first_idx_nomatch += 1
+    warns.append({'title':'Error :x:', 'body':f'Unrecognized arguments: {" ".join(l_args[first_idx_nomatch:])}'})
+    return jh.embed(
+        title=f'{ch.name} wants to drink a potion!',
+        desc=al_desc,
+        fields=warns,
+        )
+
+# Potion name verification step
+# Reject not found potion name, or empty potion name (allowed only in do_setup)
+if do_setup and not l_args:
+    # Empty potion name, specific for setup global arguments, skip looking up matching potion name
+    potion = None
+    potion_name = ''
+else:
+    # Get the canonicalized name for the potion
+    # If do_info, use args instead of l_args
+    if do_info:
+        l_args = args
+    # First, find exact match
+    f_potions = [p for p in potions if any(p_name.lower() == ' '.join(l_args).lower()
+                                           for p_name in [p['name']]+p.get('aliases', []))]
+    if not f_potions:
+        # If not found, find partial match. A match is when all words in the query is found as a substring of either 
+        # the potion name or any of its aliases, regardless of order
+        f_potions = [p for p in potions if any(all(q.lower() in p_name.lower().replace("'","") for q in l_args)
+                                               for p_name in [p['name']]+p.get('aliases', []))]
+    if not f_potions:
+        errs.append({'title':'Potion not Found :x:', 'body':f'The potion "{" ".join(l_args)}" is not found.'})
+    if len(f_potions) > 1:
+        multpot_s = '\n'.join([f'* {p["name"]}' for p in f_potions])
+        errs.append({
+            'title':'Ambiguous Potion Name :x:',
+            'body':f'The potion "{" ".join(l_args)}" matches these potions:\n{multpot_s}'
+            })
+    if errs:
+        if do_info:
+            title = f'{ch.name} failed to read a potion manual! :x:'
+        else:
+            title = f'{ch.name} failed to use a potion! :x:' 
+        return jh.embed(
+            title=title,
+            desc=(f'{al_desc}\n\n'
+                  f'**__Error__**: Ambiguous or unknown potion.\n'
+                  f'__No potion effect has been applied to anyone.__'
+                  ),
+            fields=errs+warns,
+            )
+
+    potion = f_potions[0]
+    potion_name = potion['name']
+
+# Potion name obtained, time to finalize setup, finalize info, or process arguments for actual potion use
+if do_setup:
+    if len(l_args) != len(args):
+        c_config[potion_name] = args[len(l_args):]
+        if not potion_name:
+            title = f'{ch.name} sets up default global config!'
+        else:
+            title = f'{ch.name} sets up default config for {potion_name}!'
+    else:
+        old_config = c_config.get(potion_name, '')
+        c_config = {k:v for k,v in c_config.items() if k != potion_name}
+        if not potion_name:
+            title = f'{ch.name} removes the default global config!'
+            fs.append({'title':f'Old config for Global Config', 'body':old_config})
+        else:
+            title = f'{ch.name} removes the default config for {potion_name}!'
+            fs.append({'title':f'Old config for {potion_name}', 'body':old_config})
+    ch.set_cvar(config_cvar, dump_json(c_config))
+    s_setup = []
+    for _potion, _config in c_config.items():
+        s_config = ' '.join(f'"{escape(v)}"' for v in _config)
+        if not _potion:
+            _potion = 'Global Config'
+        s_setup.append(f'{_potion}: `{s_config}`')
+    if not s_setup:
+        s_setup = f'You do not have any existing potion setup. Start one with `!{al_name} setup <args>`.'
+    else:
+        s_setup = '\n* '.join(['Current potion setup:']+s_setup)
+    return jh.embed(
+        title=title,
+        desc=s_setup,
+        fields=fs,
+        )
+elif do_info:
+    if 'help' in potion:
+        fs.append({'title':'Avrae Tips :bulb:', 'body':potion['help']})
+    return jh.embed(
+        title=f'{ch.name} reads the manual for {potion["name"]}!',
+        desc=potion['description'],
+        fields=fs,
+        )
+
+# Reaching here means we want to use the potion
+# Add the stored config into the args, then re-parse
+args = args + c_config.get("", []) + c_config.get(potion_name, [])
+p_args = argparse(args)
+k_args, l_args = jh.take_args(args, arg_config)
+
+# Continue reading arguments
+# We take the first occurence of each arg, since the args from setup will come last, and we want users to be able
+# to selectively override the setup by providing the same arguments in the actual call. These will come first.
+# Recall that k_args always contains the key, and for those starting with - it's a list, otherwise an int.
+d_dmg = '+'.join(k_args['-d'])
+a_sadv = min(1, k_args['sadv'])-min(1, k_args['sdis'])
+do_max = bool(k_args['max'])
+dur = (k_args['-dur']+[None])[0]
+rr = int((k_args['-rr']+['1'])[0])
+ignore_bag = bool(k_args['nobag'])
+bag_names = k_args['-bag']
+nomap = bool(k_args['nomap'])
+choice = (k_args['-choice']+[None])[0]
+try:
+    if int(get('potionNobag', '0')):
+        ignore_bag = True
+        if bag_names:
+            warns.append({'title':'Ignoring bag but `-bag` is provided',
+                          'body':('You have a `!uvar potionNobag` set up to ignore bags, but you also provided '
+                                  'bags to be used with `-bag`. Ignoring the bags for now.')})
+except:
+    warns.append({'title':'Invalid `potionNobag` UVar',
+                  'body':f'The value of `!uvar potionNobag` is invalid: `{get("potionNoBag")}`'})
+
+### Processing the potion data and verifying the -choice ###
+
+p_name = potion['name']
+p_desc = potion['description']
+p_help = potion.get('help', '')
+if p_help:
+    f_help = [{'title':'Avrae Tips :bulb:',
+               'body':p_help,
+              }]
+else:
+    f_help = []
+p_auto = potion['automation']
+if typeof(p_auto) == 'str':
+    # A string, assumes it's a gvar address
+    try:
+        gvar_val = get_gvar(p_auto)
+    except:
+        return jh.embed(
+            title=f'Invalid automation for potion {p_name} :x:',
+            desc=(f'The automation for the potion is neither a valid gvar address nor an automation object. '
+                  f'If this is a homebrew potion, see more how to set it up with `!{al_name} hb`'),
+            )
+    try:
+        p_auto = load_yaml(gvar_val)
+    except:
+        try:
+            p_auto = load_json(gvar_val)
+        except:
+            return jh.embed(
+                title=f'Invalid automation for potion {p_name} :x:',
+                desc=f'The gvar for the automation does not contain a valid YAML or JSON: {p_auto}',
+                )
+    p_auto = p_auto['automation']
+
+# Now p_auto is an automation object (list of automation nodes)
+# Four possibilities:
+# - a list of branches (choice='<something>'), each with one target in onTrue clause
+# - a list of effects
+# - one target
+# - nothing
+if p_auto and p_auto[0]['type'] != 'condition':
+    # If it's not a branch, make it into one
+    p_auto[:] = [{
+            'type': 'condition',
+            'condition': 'choice in ""',
+            'onTrue': p_auto[:],
+            'onFalse': [],
+            }]
+# Now it's always a list of branches
+# In the onTrue part, it can be list of effects, or one target
+# Convert the list of branches into mapping from choices to effects
+p_choices = {}
+p_targets = {}
+for p_branch in p_auto:
+    # Assumes condition is like `choice == "something"` or `choice in "something"`
+    # Both are treated the same in this alias
+    p_cond = p_branch['condition'].strip()
+    if '==' in p_cond:
+        p_cond = p_branch['condition'].split('==', maxsplit=1)[1].strip()[1:-1]
+    else:
+        p_cond = p_branch['condition'].split(' in ', maxsplit=1)[1].strip()[1:-1]
+    if p_branch['onTrue'][0]['type'] == 'target':
+        p_effects = p_branch['onTrue'][0]['effects']
+        p_targets[p_cond] = p_branch['onTrue'][0]['target']
+    else:
+        p_effects = p_branch['onTrue']
+        p_targets[p_cond] = 'all'
+    p_choices[p_cond] = p_effects
+if len(p_choices) == 1:
+    # If there is only one option, the key must be the empty string
+    p_choices = {'':list(p_choices.values())[0]}
+
+# Now we have mapping from valid choices to list of effects
+
+k_choice = None
+valid_s = '\n'.join([f'* {option}' for option in p_choices if option])
+if len(p_choices) <= 1:
+    # If there is only one choice, ignore player's choice
+    k_choice = ''
+if choice is None:
+    # If no choice given...
+    if '' in p_choices:
+        # If there is a default, use the default
+        k_choice = ''
+    # Otherwise error, handled later
+else:
+    # A choice is supplied
+    # Try exact match
+    k_choice = ([k for k in p_choices if choice.lower() == k.lower()]+[None])[0]
+    if k_choice is None:
+        # Try substring
+        k_choice = ([k for k in p_choices if choice.lower() in k.lower()]+[None])[0]
+if k_choice is None:
+    # If there are multiple options but the given -choice is not one of them, error and warn the player
+    fs.append([{'title':'Invalid potion option! :x:',
+                'body':f'The choice "{choice}" it not a valid `-choice` for {p_name}.\nValid choices are:\n{valid_s}'
+                }])
+    return jh.embed(
+        title=f'{ch.name} picked an invalid option :x:',
+        desc=f'{ch.name} is attempting to use {p_name}.',
+        fields=fs+f_help,
+        )
+# Now choice is guaranteed to be in p_choices, or that it has only one choice which is '', or empty list
+p_choice = p_choices.get(k_choice, [])
+
+if p_targets[k_choice] == 'self':
+    k_args['-t'] = []
+
+# Verifying the targets
+t_uniq, t_mult, t_none = [], [], []
+if not co:
+    # Not in combat, so target self
+    t_uniq.append(('*default*', [ch]))
+    if k_args['-t']:
+        # Not in combat, but target specified, warn
+        warns.append({'title':'Not in combat :warning:',
+                      'body':('Can only target your own active character when not in combat. '
+                              'The other targets are ignored.')})
+elif not k_args['-t']:
+    # In combat, but no target, target self in combat if joined
+    if co.me:
+        t_uniq.append(('*default*', [co.me]))
+    else:
+        t_uniq.append(('*default*', [ch]))
+else:
+    # In combat and there are targets
+    t_uniq, t_mult, t_none = jh.resolve_targets(k_args['-t'])
+    if t_mult:
+        mult = [f'* {t_arg} → {", ".join(t.name for t in ts)}' for t_arg, ts in t_mult]
+        mult_s = '\n'.join(mult)
+        mult_s = mult_s.replace('"', '\\"')
+        errs.append({'title':'Ambiguous Targets :x:', 'body':f'These targets match multiple combatants:\n{mult_s}'})
+    if t_none:
+        none = [f'* {t_arg}' for t_arg, _ in t_none]
+        none_s = '\n'.join(none)
+        none_s = none_s.replace('"', '\\"')
+        errs.append({'title':'Missing Targets :x:', 'body':f'These targets do not match any combatants:\n{none_s}'})
+if errs:
+    uniq = [f'* {t_arg} → {ts[0].name}' for t_arg, ts in t_uniq]
+    uniq_s = '\n'.join(uniq)
+    uniq_s = uniq_s.replace('"', '\\"')
+    return jh.embed(
+        title=f'{ch.name} failed to use a potion! :x:',
+        desc=(f'{al_desc}\n\n'
+              f'**__Error__**: These targets are confirmed valid:\n{uniq_s}\n'
+              f'But there are ambiguous or invalid targets.\n'
+              f'__No potion effect has been applied to anyone.__'
+              ),
+        fields=errs+warns,
+        )
+
+### Applying the effects ###
+
+# If there is a 'cc' in the potion and target is self, create them if not exist
+if 'cc' in potion:
+    if t_uniq[0][1][0] in [ch, co.me]:
+        cc_created = []
+        for cc in potion['cc']:
+            if not ch.cc_exists(cc['name']):
+                cc = ch.create_cc(**cc)
+                cc_created.append(f'**{cc.name}**: {cc}')
+        cc_title = 'Created Custom Counter'+'s'*(len(cc_created)>1)
+        if cc_created:
+            fs.append({'title':cc_title,'body':'\n'.join(cc_created)})
+    else:
+        fs.append({'title':'No CC Created',
+                   'body':(f'This potion requires a CC, but the target is not the active character. '
+                           f'No CC has been created'),
+                   })
+
+p_count = 0
+results = []
+show_map = [False]
+for t_arg, [target] in t_uniq:
+    t, t_args = (t_arg.split('|', maxsplit=1)+[''])[:2]
+    t_keyargs, t_posargs = jh.take_args(t_args.split(), keys=jh.DEF_ARGS['attack'])
+
+    t_rr = int(([str(rr)]+t_keyargs['-rr'])[-1])
+    p_count += t_rr
+
+    t_choice = ([None]+t_keyargs['-choice'])[-1]
+    if not t_choice:
+        t_choice = ([arg for arg in t_posargs]+[k_choice])[0]
+    t_choice = ([k for k in p_choices if t_choice.lower() in k.lower()]+[None])[0]
+    if t_choice is None and len(p_choices) > 1:
+        t_choice = k_choice
+    tp_choice = p_choices.get(t_choice, p_choice)
+
+    def execute(effect):
+        if effect['type'] == 'ieffect2':
+            # iEffect node
+            ef_name = effect['name']
+            if not nomap and ('enlarged' in ef_name.lower() or 'reduced' in ef_name.lower()):
+                # Potion of Growth / Diminution special effect
+                if target != ch:
+                    # Only applicable when in initiative
+                    if target.get_effect(ef_name):
+                        # Already exists, not changing token size
+                        results.append(f'Not changing size of {target.name}, only refreshing duration')
+                    else:
+                        map_dict = dict((kv.split(': ')+[None])[:2] for kv in target.note.split(' | ') if kv)
+                        size = map_dict.get('Size', 'M')[0].upper()
+                        if 'enlarged' in ef_name.lower():
+                            size = 'TSMLHG'[min(5,'TSMLHG'.index(size)+1)]
+                        else:
+                            size = 'TSMLHG'[max(0,'TSMLHG'.index(size)-1)]
+                        size_s = size_map[size]
+                        map_dict['Size'] = f'{size} ({size_s})'
+                        target.set_note(' | '.join([f'{k}: {v}' if v is not None else k for k, v in map_dict.items()]))
+                        results.append(f'Changing size of {target.name} to {size_s} ({size}) [for OTFBM]')
+                        show_map[0] = True
+            ef_desc = effect.get('desc', None) or None
+            ef_dur = effect.get('duration', '0') or '0'
+            if dur is not None:
+                # If duration is specified via -dur, use it to override
+                ef_dur = dur
+            if 'd' in ef_dur:
+                # Dice roll, show it
+                existing_ef = target.get_effect(ef_name)
+                if existing_ef:
+                    existing_dur = existing_ef.duration
+                    ef_dur_roll = vroll(f'({ef_dur},{existing_dur})kh1')
+                else:
+                    ef_dur_roll = vroll(ef_dur)
+                ef_dur_s = str(ef_dur_roll)
+                ef_dur = ef_dur_roll.total
+                if ef_dur <= 10:
+                    extra = ''
+                elif ef_dur <= 600:
+                    extra = f' [{ef_dur/10:.1f} minutes]'
+                elif ef_dur <= 14400:
+                    extra = f' [{ef_dur/600:.1f} hours]'
+                else:
+                    extra = f' [{ef_dur/14400:.1f} days]'
+                # In principle, this Duration line is only shown there are some information in there, like from a dice
+                # roll like this one, or overriding existing duration like the next code block.
+                # But not shown if it's standard duration.
+                results.append(f'Duration: {ef_dur_s} rounds{extra}')
+            else:
+                existing_ef = target.get_effect(ef_name)
+                if existing_ef:
+                    existing_dur = existing_ef.duration
+                    ef_dur_roll = vroll(f'({ef_dur},{existing_dur})kh1')
+                    ef_dur_s = str(ef_dur_roll)
+                    ef_dur = ef_dur_roll.total
+                    if ef_dur <= 10:
+                        extra = ''
+                    elif ef_dur <= 600:
+                        extra = f' [{ef_dur/10:.1f} minutes]'
+                    elif ef_dur <= 14400:
+                        extra = f' [{ef_dur/600:.1f} hours]'
+                    else:
+                        extra = f' [{ef_dur/14400:.1f} days]'
+                    results.append(f'Duration: {ef_dur_s} rounds{extra}')
+                else:
+                    ef_dur_roll = vroll(ef_dur)
+                    ef_dur = ef_dur_roll.total or None
+            ef_btns = effect.get('buttons', []) or []
+            ef_atts = effect.get('attacks', []) or []
+            ef_effs = effect.get('effects', {}) or {}
+            # Process each effect for variables for Giant Strength potions
+            for k, v in ef_effs.items():
+                if typeof(v) == 'str' and v.startswith('{SB(') and v.endswith(')}'):
+                    # In the form of {SB(21)} or {SB(25)}
+                    sb = max(0,(int(v[4:-2])//2-target.stats.strength//2))
+                    ef_effs[k] = sb
+            ef_conc = effect.get('conc', False)
+            ef_pars = effect.get('parent', None) or None
+            if ef_pars in saved_effects:
+                ef_pars = saved_effects[ef_pars]
+            ef_save = effect.get('save_as', None) or None
+            ef_end = effect.get('end', False)
+            if target == ch:
+                results.append(f'__{target.name}__: *Not in combat*')
+            else:
+                if ef_conc:
+                    # Check for existing conc effect that will be dropped
+                    for _ef in target.effects:
+                        if _ef.conc:
+                            results.append(f'**Concentration**: Dropped {_ef.name} due to concentration')
+                            break
+                ef_tick = effect.get('tick_on_combatant_id', target.id)
+                ef = target.add_effect(ef_name, desc=ef_desc, duration=ef_dur, buttons=ef_btns, attacks=ef_atts,
+                                       passive_effects=ef_effs, concentration=ef_conc, parent=ef_pars,
+                                       tick_on_combatant_id=ef_tick, end=ef_end)
+                if ef_save is not None:
+                    saved_effects[ef_save] = ef
+                results.append(f'__{target.name}__: {str(ef).splitlines()[0]}')
+        elif effect['type'] == 'text':
+            # Text node
+            new_f = {'title':effect.get('title', 'Effect'), 'body':effect.get('text','')}
+            if all(new_f != f for f in fs):
+                fs.append(new_f)
+        elif effect['type'] == 'damage':
+            # Damage node
+            p_dmg = effect['damage']
+            if d_dmg:
+                p_dmg = f'{p_dmg}+{d_dmg}'
+            if do_max:
+                p_dmg = dicelib.maximize(p_dmg)
+                results.append('Maximizing damage/healing due to `max`')
+            dmg_s = []
+            dmg_total = 0
+            for _ in range(t_rr):
+                dmg = vroll(p_dmg)
+                dmg_s.append(str(dmg))
+                dmg_total += -dmg.total
+            p_overheal = effect.get('overheal', False)
+            hp_str = target.modify_hp(dmg_total, overflow=p_overheal)
+            f_title = f'{target.name} {hp_str} ({dmg_total:+d})'
+            f_body = '\n'.join([f'**Heal**: {s}' if dmg_total>=0 else f'**Damage**: {s}' for s in dmg_s])
+            fs.append({'title':f_title, 'body':f_body})
+        elif effect['type'] == 'temphp':
+            # Temp HP node
+            if target.temp_hp > 0:
+                thp = vroll(f'({target.temp_hp},{effect["amount"]})kh1')
+            else:
+                thp = vroll(effect['amount'])
+            results.append(f'THP: {thp}')
+            target.set_temp_hp(thp.total)
+        elif effect['type'] == 'save':
+            # Saving throw node
+            stat = stat_map[effect['stat'].lower()[:3]]
+            try:
+                dc = int(effect['dc'])
+            except:
+                dc = ch.spellbook.dc or 8+ch.stats.prof_bonus
+                results.append('Using character spell DC since the potion does not specify')
+            if a_sadv == 0:
+                sadv = None
+            elif a_sadv == 1:
+                sadv = True
+            else:
+                sadv = False
+            save_result = vroll(ch.saves.get(stat).d20(base_adv=sadv))
+            success = save_result.total >= dc
+            if success:
+                save_result_s = 'Success!'
+            else:
+                save_result_s = 'Failure!'
+            fs.append({'title':'Meta',
+                       'body':f'**DC**: {dc}\n**{stat[:3].upper()} Save**: {save_result}. {save_result_s}'})
+            if success:
+                # Success
+                for _effect in effect['success']:
+                    execute(_effect)
+            else:
+                # Fail
+                for _effect in effect['fail']:
+                    execute(_effect)
+
+    saved_effects = {}
+    for effect in tp_choice:
+        execute(effect)
+results.insert(0, f'Used {p_name} x{p_count}')
+
+if not ignore_bag:
+    using(bl='4119d62e-6a98-4153-bea9-0a99bb36da2c')
+    bags = bl.load_bags()
+
+    # If bag_names not empty, use only those, if found
+    # Otherwise, use all bags, prioritizing those containing potion or belt
+    found_bags = []
+    for bag_name in bag_names:
+        found = False
+        for bag in bags:
+            if bag_name.lower() == bag[0].lower():
+                found = True
+                found_bags.append(bag)
+                break
+        if found:
+            continue
+        for bag in bags:
+            if bag_name.lower() in bag[0].lower():
+                found_bags.append(bag)
+    if len(found_bags) == 0:
+        for bag_name in ['potion', 'belt']:
+            bag = bl.get_bag(bags, bag_name)
+            if bag:
+                found_bags.append(bag)
+        for bag in bags:
+            if bag in found_bags: continue
+            found_bags.append(bag)
+    bag_names = [bag[0] for bag in found_bags]
+    if len(found_bags) == 0:
+        found_bags = bags
+        out = (f'Attempting to remove a {p_name} from your bags.')
+    else:
+        out = (f'Attempting to remove a {p_name} from '
+               f'the bag{"s" if len(bag_names)>1 else ""} {", ".join(bag_names)}')
+    simple_name = p_name.replace('Potion of ','')
+    for item in [p_name, f'{simple_name} potion', simple_name]:
+        try:
+            the_bag, [item], bag_err = bl.modify_item(found_bags, item, -p_count)
+            if not bag_err:
+                break
+        except:
+            bag_err = True
+            item = p_name
+    if not bag_err:
+        if item in the_bag[1]:
+            count = the_bag[1][item]
+        else:
+            count = 0
+        bl.save_bags(bags)
+        results.append(f'Updated bag {the_bag[0]}: {count}x {item} (-{p_count})')
+    else:
+        try:
+            the_bag, *_ = bl.modify_item(found_bags, item, 0)
+            count = the_bag[1][item]
+        except:
+            count = 0
+        results.append((f'Bag unchanged due to not enough {p_name} in your bags (found {count}, need {p_count}). '
+                        f'Potion effects are still applied.'))
+
+desc = p_desc
+summary = '\n* '.join(['']+results)
+if len(t_uniq) == 1:
+    if t_uniq[0][1][0].name == jh.C[jh.CH_NAME]:
+        title = f'{jh.C[jh.CH_NAME]} drinks {p_name}! :white_check_mark:'
+    else:
+        title = f'{jh.C[jh.CH_NAME]} administers {p_name} to {t_uniq[0][1][0].name}! :white_check_mark:'
+else:
+    title = f'{jh.C[jh.CH_NAME]} administers {p_name} to multiple targets! :white_check_mark:'
+if potion.get('showHelp', True):
+    fs = fs+f_help+warns
+else:
+    fs = fs+warns
+if show_map[0]:
+    using(maplib=jh.LIB['maplib'])
+    link = maplib.get_link()
+    summary = f'{summary}\n\n[Map]({link})'
+else:
+    link = None
+fs.append({'title':'__Summary__', 'body':summary})
+return jh.embed(
+    title=title,
+    desc=desc,
+    fields=fs,
+    image=link,
+    )
+</drac2>

@@ -1,0 +1,90 @@
+<drac2>
+al_name = 'evasion'
+footer = f'!{al_name} -amt <dmg> pass|fail | Evasion alias by justhalf'
+
+using(jh='65a30ab9-540c-4bdf-86ce-7af4760604a9')
+jh.setup(
+        al_name=al_name,
+        footer=footer,
+        )
+
+ch = character()
+args = &ARGS&
+
+abl_desc = (f'When you are subjected to an effect that allows you to make a Dexterity saving throw to take only half '
+            f'damage, you instead take no damage if you succeed on the saving throw, and only half damage if you fail.')
+
+if not args or args[0] in ['?', 'help']:
+    return jh.embed(
+        title='Evasion Alias',
+        desc=(
+            f'{abl_desc}\n\n'
+            f'**Usage**:\n'
+            f'`!{al_name} -amt <damage> pass|fail`\n'
+            f'* `-amt <damage>`: the actual damage received.\n'
+            f'* `pass|fail`: whether the Dexterity save was a success (`pass`) or a failure (`fail`).'
+            ),
+    )
+
+args = argparse(args)
+amt = int(args.last('amt', '0'))
+f_fail = args.last('fail', None)
+f_pass = args.last('pass', None)
+if f_fail is None and f_pass is None:
+    return jh.embed(
+        title='Evasion alias',
+        desc=(
+            f'{abl_desc}\n\n'
+            f'**Usage**:\n'
+            f'`!{al_name} -amt <damage> pass|fail`\n'
+            f'* `-amt <damage>`: the actual damage received.\n'
+            f'* `pass|fail`: whether the Dexterity save was a success (`pass`) or a failure (`fail`).'
+            ),
+        fields=[{'title':'Error', 'body':'Need to specify `pass` or `fail`.'}],
+    )
+fail = bool(f_fail) or not bool(f_pass)
+me = None
+
+if not fail:
+    dmg = 0
+    pass_s = 'success'
+    dmg_s = f'{amt} * 0 = 0'
+else:
+    dmg = amt//2
+    pass_s = 'failure'
+    dmg_s = f'{amt} / 2 = {dmg}'
+heal = amt-dmg
+desc = (
+        f'Dex save was a __**{pass_s}**__!\n'
+        f'**Damage received**: {amt}\n'
+        f'**With Evasion**: {dmg_s}\n'
+        f'**Damage prevented**: {amt} - {dmg} = {heal}'
+        )
+fs = []
+fs.append({'title':'Effect', 'body':abl_desc})
+footer = None
+me = None
+name = ch.name
+if combat():
+    me = combat().me
+if me:
+    is_zero = me.hp == 0
+    me.set_hp(me.hp + heal)
+    footer = f'{me.name}: {me.hp_str()} ({heal:+d})'
+    name = me.name
+    if is_zero:
+        fs.append({'title':'Zero HP Warning',
+                   'body':(f'{name} was at 0 HP before this command is run. Healing amount may be incorrect if there '
+                           f'were excess damage.\nPlease correct the final HP manually, by reducing the HP by the '
+                           f'amount of excess damage.\n\nFor example, if the excess damage was X, then reduce current '
+                           f'HP by X with\n`!i hp "{name}" -X`'),
+                   })
+else:
+    fs.append({'title':f'{ch.name} not in combat', 'body':f'No HP changes performed.'})
+return jh.embed(
+        title=f'{name} used Evasion!',
+        desc=desc,
+        fields=fs,
+        f_footer=footer,
+        )
+</drac2>

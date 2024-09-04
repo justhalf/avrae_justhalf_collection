@@ -25,8 +25,12 @@ desc = (f'Calculates statistics of simple dice expressions.\n\n'
         f'* Returns the average of the dice expression\n\n'
         f'`!{al_name} prob <dice_str> -dc <dc>`\n'
         f'* Returns the probability of the dice beating (equal or higher) the DC\n\n'
-        f'`!{al_name} stats <dice_str>`\n'
-        f'* Returns statistical summary of the dice (min, max, avg, distribution, etc.)\n\n'
+        f'`!{al_name} stats <dice_str> (-op <|=|>)`\n'
+        f'* Returns statistical summary of the dice (min, max, avg, distribution, etc.)\n'
+        f'* The `-op` argument controls the displayed distribution, whether to show "at most" (<), "equal" (=), '
+        f'or "at least" (>)\n'
+        f'  For example, `!{al_name} prob 1d20 -dc 13` should show the same probability as '
+        f'`!{al_name} stats 1d20 -op >` at the value 13\n\n'
         f'**Setup**\n'
         f'You can set `!uvar diceDisplayWidth 30` to change the width of the distribution display '
         f'for `!{al_name} stats <dice_str>`. The default value is 20.')
@@ -93,6 +97,14 @@ elif subc == 'stats':
         warns.append(f'Please specify a dice expression')
         return show_help()
     dice = args[1]
+    op = p_args.last('op', '=')
+    fs = []
+    if op not in '<=>':
+        op = '='
+        fs.append({'title':'Warning :warning:',
+                   'body':f'Operator `-op` needs to be one of "<", "=", ">". Found "{op}", defaulting to "=".'})
+    op_s = {'<':'at most', '=':'exactly', '>':'at least'}[op]
+    op_s = f'{op_s} ("{op}")'
     dist = dicelib.dist(dice)
     minval = min(v for v, n in dist)
     maxval = max(v for v, n in dist)
@@ -105,6 +117,9 @@ elif subc == 'stats':
             maxn = n
             mode = v
             modeidx = i
+    start_idx = max(0, modeidx-20)
+    end_idx = min(len(dist), modeidx+20+1)
+
     total = 0
     count = 0
     for v, n in dist:
@@ -112,7 +127,15 @@ elif subc == 'stats':
         count += n
     avg = total/count
     dist_s = []
+    cumsum = 0
     for v, n in dist:
+        cumsum += n
+        if op == '<':
+            n = cumsum
+            maxn = 1
+        elif op == '>':
+            n = count-cumsum+n
+            maxn = 1
         p = 100*n/count
         divisor = 100 / display_width
         fill = min(3*display_width, int(round((300*n/maxn)/divisor)))
@@ -125,13 +148,16 @@ elif subc == 'stats':
         empty_c = ' '
         bar = f'`|{fill_c*fill}{half_c*half}{empty_c*empty}|` {p:.2f}%'
         dist_s.append(f'`{v:>{maxlen}d}`: {bar}')
-    start_idx = max(0, modeidx-20)
-    end_idx = min(len(dist_s), modeidx+20+1)
     if start_idx != 0 or end_idx != len(dist_s):
         dist_title = f'Distribution (truncated around mode):'
     else:
         dist_title = f'Distribution:'
-    dist_s = '\n'.join(dist_s[start_idx:end_idx])
+    dist_s = dist_s[start_idx:end_idx]
+    if start_idx != 0:
+        dist_s.insert(0, '`...`')
+    if end_idx != len(dist):
+        dist_s.append('`...`')
+    dist_s = '\n'.join(dist_s)
     return jh.embed(
         title='Dice Statistics',
         desc=(f'Dice expression: {dice}\n'
@@ -139,7 +165,9 @@ elif subc == 'stats':
               f'Minimum: {minval:d}\n'
               f'Maximum: {maxval:d}\n'
               f'Mode: {mode:d}\n'
+              f'Operator: {op_s}\n'
               f'{dist_title}\n{dist_s}'),
+        fields=fs,
         f_thumb=None,
         )
 </drac2>

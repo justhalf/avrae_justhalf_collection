@@ -76,16 +76,30 @@ def _calc(dice, dc=None, raw=False):
     else:
         err_msg = 'Cannot calculate probability of complex dice'
     values = pos + [None] + neg
+    dist_cache = {}
+    def full_opcode_to_key(full_opcode):
+        key = ''
+        for opcode_key, opcode_val in full_opcode.items():
+            if opcode_val is None:
+                key = f'{key}{opcode_key}'
+            elif typeof(opcode_val) in ['str', 'int']:
+                key = f'{key}{opcode_key}{opcode_val}'
+            else:
+                opcode_val = list(opcode_val)
+                opcode_val.sort()
+                key = f'{key}{opcode_key}{opcode_val}'
+        return key
     for val in values:
         if val is None:
             mult = -1
             continue
         if typeof(val) == 'Literal':
             # Literal is directly added to reduce DC, or saved in result[1]
+            # Need to use .number and not .total, since dropped literal are not considered in .total
             if dc is None and not raw:
-                result[1] += mult*val.total
+                result[1] += mult*val.number
             else:
-                dc -= mult*val.total
+                dc -= mult*val.number
         elif typeof(val) == 'Dice':
             # For dice, generate the distribution, potentially after applying the operations
             # Currently the supported operations are kl, kh, pl, ph, rr, ro, mi, ma, ra, e
@@ -102,12 +116,17 @@ def _calc(dice, dc=None, raw=False):
 
             # A shortcode storing the current operator
             opcode = None
+            full_opcode = {f'{val.num}d{val.size}':None}
             # The number specified in the selector
             num = None
+
+            # Whether the dice has ra or e, after which, no more operators are accepted
+            exploded = False
             for op_idx, operator in enumerate(val.operations):
                 # The operating function
                 op = None
                 if operator.op == 'k':
+                    if exploded: err('Cannot have more operators after e or ra')
                     # Group together the kX, k<X, and k>X, then optionally process khX, klX
                     # Then no more selectors are accepted. Throw error in that case, as too complex
                     kept = None
@@ -124,9 +143,11 @@ def _calc(dice, dc=None, raw=False):
                             if kept is None: kept = []
                             kept.extend([v for v, n in one_die if v > sel.num])
                         else:
+                            # kh or kl, break
                             break
                         sel_idx += 1
                     if kept is not None:
+                        full_opcode['k'] = kept
                         one_die = normalize([(v, n if v in kept else 0) for v, n in one_die])
                     h_count = None
                     l_count = None
@@ -147,7 +168,7 @@ def _calc(dice, dc=None, raw=False):
                             else:
                                 l_count = max(l_count, num)
                         else: # More kX, k<X, k>X, reject!
-                            err(err_msg)
+                            err('Cannot have k with literals after kh or kl')
                         sel_idx += 1
                     if kept is None and op_idx == 0:
                         # If there are literal selectors (kept is not None), no pre-calculation, so no opcode
@@ -167,10 +188,13 @@ def _calc(dice, dc=None, raw=False):
                         # Keeping all, no-op
                         # Continue to the next operator
                         continue
-                    def op(_l):
-                        _l.sort()
-                        return sum(_l[:l_count]+_l[-h_count:])
+                    full_opcode['kh'] = h_count
+                    full_opcode['kl'] = l_count
+                    def op(l_):
+                        l_.sort()
+                        return sum(l_[:l_count]+l_[-h_count:])
                 elif operator.op == 'p':
+                    if exploded: err('Cannot have more operators after e or ra')
                     # Group together the pX, p<X, and p>X, then optionally process phX, plX
                     # Then no more selectors are accepted. Throw error in that case, as too complex
                     dropped = None
@@ -190,6 +214,7 @@ def _calc(dice, dc=None, raw=False):
                             break
                         sel_idx += 1
                     if dropped is not None:
+                        full_opcode['p'] = dropped
                         one_die = normalize([(v, n if v not in dropped else 0) for v, n in one_die])
                     h_count = None
                     l_count = None
@@ -210,7 +235,7 @@ def _calc(dice, dc=None, raw=False):
                             else:
                                 l_count = max(l_count, num)
                         else: # More pX, p<X, p>X, reject!
-                            err(err_msg)
+                            err('Cannot have p with literals after ph or pl')
                         sel_idx += 1
                     if dropped is None and op_idx == 0:
                         # If there are literal selectors (dropped is not None), no pre-calculation, so no opcode
@@ -229,10 +254,13 @@ def _calc(dice, dc=None, raw=False):
                         # Dropping none, no-op
                         # Continue to the next operator
                         continue
-                    def op(_l):
-                        _l.sort()
-                        return sum(_l[l_count:-h_count])
+                    full_opcode['ph'] = h_count
+                    full_opcode['pl'] = l_count
+                    def op(l_):
+                        l_.sort()
+                        return sum(l_[l_count:-h_count])
                 elif operator.op == 'rr':
+                    if exploded: err('Cannot have more operators after e or ra')
                     # Remove the selected values from possible outcome
                     removed = set()
                     for sel in operator.sels:
@@ -246,9 +274,11 @@ def _calc(dice, dc=None, raw=False):
                         else:
                             # No such thing as rrhX or rrlX, vroll would have returned None, so this is unreachable
                             err(err_msg)
+                    full_opcode['rr'] = removed
                     one_die = normalize([(v, n if v not in removed else 0) for v, n in one_die])
                     continue
                 elif operator.op == 'ro':
+                    if exploded: err('Cannot have more operators after e or ra')
                     # Re-distribute the removed values to other values, including itself
                     redistributed = set()
                     for sel in operator.sels:
@@ -265,7 +295,8 @@ def _calc(dice, dc=None, raw=False):
                             # if needed, but it's not, if used with other roX. ro doesn't split the operations the
                             # way k or p does. 3d6ro2rol1ro1 means roll any 1 and 2 and the lowest number among the
                             # three d6. It does not reroll 2, then reroll lowest, then reroll 1.
-                            err(err_msg)
+                            err('Not supported yet: rohX and rolX')
+                    full_opcode['ro'] = redistributed
                     one_die = dict(one_die)
                     redist_w = sum(one_die.get(v, 0) for v in redistributed)/len(one_die)
                     one_die = [(v, n*(v not in redistributed) + redist_w) for v, n in one_die.items()]
@@ -274,6 +305,7 @@ def _calc(dice, dc=None, raw=False):
                     # Re-distribute the removed values proportional to the same die, but shifted
                     # ra is just e but only once
                     redistributed = set()
+                    exploded = True
                     for sel in operator.sels:
                         # Using for loop since there could be multiple selectors like ra1ra3
                         if sel.cat is None:
@@ -289,30 +321,37 @@ def _calc(dice, dc=None, raw=False):
                             # It does not: reroll 2, then reroll lowest, then reroll 1.
 
                             # No such thing as ehX or elX since it will never end
-                            err(err_msg)
-                    vanilla_one_die = dict((v, 1/val.size) for v in range(1, val.size+1))
-                    tol = 0.0001*((val.size//2)**(val.num-1)) # Stop exploding when it's too rare anyway
-                    def explode(cur_dist):
-                        redist_w = 0
-                        for v in redistributed:
-                            redist_w += cur_dist.get(v, 0)
-                        if redist_w < tol: return cur_dist
-                        # Always use vanilla die when rerolling
-                        next_dist = dict((v, n*redist_w) for v, n in vanilla_one_die.items())
-                        if operator.op == 'e':
-                            next_dist = explode(next_dist)
-                        new_dist = {}
-                        for v in cur_dist:
-                            if v in redistributed:
-                                for _v, _n in next_dist.items():
-                                    new_dist[v+_v] = new_dist.get(v+_v, 0) + _n
-                            else:
-                                new_dist[v] = cur_dist[v]
-                        return new_dist
-                    one_die = explode(dict(one_die))
-                    one_die = [(v, n) for v, n in one_die.items()]
+                            err('Not supported yet: rahX and ralX')
+                    full_opcode[operator.op] = redistributed
+                    key = full_opcode_to_key(full_opcode)
+                    if key in dist_cache:
+                        one_die = list(dist_cache[key])
+                    else:
+                        vanilla_one_die = dict((v, 1/val.size) for v in range(1, val.size+1))
+                        tol = 0.0001**(4/(val.num+3)) # Stop exploding when it's too rare anyway
+                        def explode(cur_dist):
+                            redist_w = 0
+                            for v in redistributed:
+                                redist_w += cur_dist.get(v, 0)
+                            if redist_w < tol: return cur_dist
+                            # Always use vanilla die when rerolling
+                            next_dist = dict((v, n*redist_w) for v, n in vanilla_one_die.items())
+                            if operator.op == 'e':
+                                next_dist = explode(next_dist)
+                            new_dist = {}
+                            for v in cur_dist:
+                                if v in redistributed:
+                                    for v_, n_ in next_dist.items():
+                                        new_dist[v+v_] = new_dist.get(v+v_, 0) + n_
+                                else:
+                                    new_dist[v] = cur_dist[v]
+                            return new_dist
+                        one_die = explode(dict(one_die))
+                        one_die = [(v, n) for v, n in one_die.items()]
+                        dist_cache[key] = list(one_die)
                     continue
                 elif operator.op == 'mi':
+                    if exploded: err('Cannot have more operators after e or ra')
                     sel_num = operator.sels[0].num
                     if operator.sels[0].cat is None:
                         pass
@@ -322,6 +361,10 @@ def _calc(dice, dc=None, raw=False):
                     else:
                         # No such thing as mihX or milX, vroll would have returned None, so this is unreachable
                         err(err_msg)
+                    if 'mi' in full_opcode:
+                        full_opcode['mi'] = max(full_opcode['mi'], sel_num)
+                    else:
+                        full_opcode['mi'] = sel_num
                     below_min_w = sum(n for v, n in one_die if v <= sel_num)
                     # Keep 0s here, since the value is still eligible for reroll later
                     # For example, 1d4mi2ro<3, even though 1 is converted to 2 by mi2, it can still appear in the
@@ -329,6 +372,7 @@ def _calc(dice, dc=None, raw=False):
                     one_die = [(v, below_min_w if v == sel_num else 0 if v < sel_num else n) for v, n in one_die]
                     continue
                 elif operator.op == 'ma':
+                    if exploded: err('Cannot have more operators after e or ra')
                     sel_num = operator.sels[0].num
                     if operator.sels[0].cat is None:
                         pass
@@ -338,6 +382,10 @@ def _calc(dice, dc=None, raw=False):
                     else:
                         # No such thing as mahX or malX, vroll would have returned None, so this is unreachable
                         err(err_msg)
+                    if 'ma' in full_opcode:
+                        full_opcode['ma'] = min(full_opcode['ma'], sel_num)
+                    else:
+                        full_opcode['ma'] = sel_num
                     above_max_w = sum(n for v, n in one_die if v >= sel_num)
                     # Keep 0s here, since the value is still eligible for reroll later
                     # For example, 1d4ma3ro>2, even though 4 is converted to 3 by ma3, it can still appear in the
@@ -346,29 +394,49 @@ def _calc(dice, dc=None, raw=False):
                     continue
                 else:
                     # Captures other new operators, future-proofing
-                    err(err_msg)
+                    err(f'Unsupported operation: {operator.op}')
                 # Reaching here, must be kh/pl case, combine the dice
+                key = full_opcode_to_key(full_opcode)
                 if opcode in PRECALC:
                     one_die = PRECALC[opcode]
                     opcode = None
+                elif key in dist_cache:
+                    one_die = list(dist_cache[key])
+                elif full_opcode.get('kh', 0) == 1 or full_opcode.get('kl', 0) == 1:
+                    # Special optimization for kh1 and kl1
+                    sorted_die = list(one_die)
+                    sorted_die.sort(reverse=full_opcode.get('kl', 0) == 1)
+                    prefix_sum = {}
+                    cur_total = 0
+                    for v, n in sorted_die:
+                        cur_total += n
+                        prefix_sum[v] = cur_total
+                    one_die = []
+                    prev_chance = 0
+                    for v, n in prefix_sum.items():
+                        cur_chance = n**dice_mult
+                        one_die.append((v, cur_chance-prev_chance))
+                        prev_chance = cur_chance
+                    dist_cache[key] = list(one_die)
                 else:
                     # No pre-calculation
-                    _one_die = {}
-                    def _g(_vals, _l, _n):
-                        if len(_vals) == 1:
-                            for val, n in _vals[0]:
-                                v = op(_l+[val])
-                                if v not in _one_die:
-                                    _one_die[v] = 0
-                                _one_die[v] += _n*n
+                    one_die_ = {}
+                    def g_(vals_, l_, n_):
+                        if len(vals_) == 1:
+                            for val, n in vals_[0]:
+                                v = op(l_+[val])
+                                if v not in one_die_:
+                                    one_die_[v] = 0
+                                one_die_[v] += n_*n
                         else:
-                            for val, n in _vals[0]:
-                                _g(_vals[1:], _l+[val], _n*n)
-                    _g([one_die]*dice_mult, [], 1)
-                    one_die = list(_one_die.items())
+                            for val, n in vals_[0]:
+                                g_(vals_[1:], l_+[val], n_*n)
+                    g_([one_die]*dice_mult, [], 1)
+                    one_die = list(one_die_.items())
+                    dist_cache[key] = list(one_die)
                 dice_mult = 1
 
-            # We have processed this Dice, resulting in dice_mult * one_die distributions
+            # We have now finished processing this Dice, resulting in dice_mult * one_die distributions
             if dc is None and not raw:
                 # For average, just calculate each Dice individually
                 # dice_mult is number of dice (after aggregating those with kh/pl)
@@ -382,7 +450,188 @@ def _calc(dice, dc=None, raw=False):
                     d_vals[one_die] = 0
                 d_vals[one_die] += dice_mult
         elif typeof(val) == 'Set':
-            err(err_msg)
+            # For set, we recursively call dist
+            dice_mult = 1
+            dist_set = [dist(_v) for _v in val.values]
+            for op_idx, operator in enumerate(val.operations+[None]):
+                # The operating function
+                op = None
+                opcode = None
+                if operator is None:
+                    # Pure parenthesis, sum
+                    op = sum
+                elif operator.op == 'k':
+                    # Group together the kX, k<X, and k>X, then optionally process khX, klX
+                    # Then no more selectors are accepted. Throw error in that case, as too complex
+                    kept = None
+                    sel_idx = 0
+                    while sel_idx < len(operator.sels):
+                        sel = operator.sels[sel_idx]
+                        if sel.cat == None:
+                            if kept is None: kept = []
+                            kept.append(sel.num)
+                        elif sel.cat == '<':
+                            if kept is None: kept = []
+                            for one_die in dist_set:
+                                kept.extend([v for v, n in one_die if v < sel.num])
+                        elif sel.cat == '>':
+                            if kept is None: kept = []
+                            for one_die in dist_set:
+                                kept.extend([v for v, n in one_die if v > sel.num])
+                        else:
+                            # kh or kl, break
+                            break
+                        sel_idx += 1
+                    if kept is not None:
+                        for idx, one_die in enumerate(dist_set):
+                            one_die = normalize([(v, n if v in kept else 0) for v, n in one_die])
+                            dist_set[idx] = one_die
+                    h_count = None
+                    l_count = None
+                    while sel_idx < len(operator.sels):
+                        # There are more selectors after kX, k<X, and k>X
+                        # Only a sequence of khX and klX are accepted, no more kX, k<X, and k>X
+                        sel = operator.sels[sel_idx]
+                        if sel.cat == 'h':
+                            num = sel.num
+                            opcode = f'kh{num}'
+                            if h_count is None:
+                                h_count = num
+                            else:
+                                h_count = max(h_count, num)
+                        elif sel.cat == 'l':
+                            num = sel.num
+                            opcode = f'kl{num}'
+                            if l_count is None:
+                                l_count = num
+                            else:
+                                l_count = max(l_count, num)
+                        else: # More kX, k<X, k>X, reject!
+                            err('Cannot have k with literals after kh or kl')
+                        sel_idx += 1
+                    if h_count is None and l_count is None: continue
+                    # Now either h_count or l_count is not None, set the other to 0
+                    if h_count is None: h_count = 0
+                    if l_count is None: l_count = 0
+                    def op(l_):
+                        l_.sort()
+                        return sum(l_[:l_count]+l_[-h_count:])
+                elif operator.op == 'p':
+                    # Group together the pX, p<X, and p>X, then optionally process phX, plX
+                    # Then no more selectors are accepted. Throw error in that case, as too complex
+                    dropped = None
+                    sel_idx = 0
+                    while sel_idx < len(operator.sels):
+                        sel = operator.sels[sel_idx]
+                        if sel.cat == None:
+                            if dropped is None: dropped = []
+                            dropped.append(sel.num)
+                        elif sel.cat == '<':
+                            if dropped is None: dropped = []
+                            for one_die in dist_set:
+                                dropped.extend([v for v, n in one_die if v < sel.num])
+                        elif sel.cat == '>':
+                            if dropped is None: dropped = []
+                            for one_die in dist_set:
+                                dropped.extend([v for v, n in one_die if v > sel.num])
+                        else:
+                            break
+                        sel_idx += 1
+                    if dropped is not None:
+                        for idx, one_die in enumerate(dist_set):
+                            one_die = normalize([(v, n if v not in dropped else 0) for v, n in one_die])
+                            dist_set[idx] = one_die
+                    h_count = None
+                    l_count = None
+                    while sel_idx < len(operator.sels):
+                        # There are more selectors after pX, p<X, and p>X
+                        # Only a sequence of phX and plX are accepted, no more pX, p<X, and p>X
+                        sel = operator.sels[sel_idx]
+                        if sel.cat == 'h':
+                            num = sel.num
+                            opcode = f'ph{num}'
+                            if h_count is None:
+                                h_count = num
+                            else:
+                                h_count = max(h_count, num)
+                        elif sel.cat == 'l':
+                            num = sel.num
+                            opcode = f'pl{num}'
+                            if l_count is None:
+                                l_count = num
+                            else:
+                                l_count = max(l_count, num)
+                        else: # More pX, p<X, p>X, reject!
+                            err('Cannot have p with literals after ph or pl')
+                        sel_idx += 1
+                    if h_count is None and l_count is None: continue
+                    if h_count is None: h_count = 0
+                    if l_count is None: l_count = 0
+                    def op(l_):
+                        l_.sort()
+                        return sum(l_[l_count:-h_count])
+                else:
+                    err(f'The only possible operators for a set are k and l, found "{operator.op}"')
+                if opcode in ['kh1', 'kl1']:
+                    # Special optimization for kh1 and kl1
+                    def sorted(one_die):
+                        result = list(one_die)
+                        result.sort(reverse=opcode=='kl1')
+                        return result
+                    dist_set = [sorted(one_die) for one_die in dist_set]
+                    dist_values = {}
+                    def cumsum(sorted_die):
+                        prefix_sum = {}
+                        cur_total = 0
+                        for v, n in sorted_die:
+                            cur_total += n
+                            prefix_sum[v] = cur_total
+                            dist_values[v] = 0
+                        return prefix_sum
+                    prefix_sums = [cumsum(sorted_die) for sorted_die in dist_set]
+                    dist_values = list(dist_values.keys())
+                    dist_values.sort()
+                    for prefix_sum in prefix_sums:
+                        last_n = 0
+                        for v in dist_values:
+                            prefix_sum[v] = prefix_sum.get(v, last_n)
+                            last_n = prefix_sum[v]
+                    one_die = []
+                    prev_chance = 0
+                    for v in dist_values:
+                        cur_chance = 1
+                        for prefix_sum in prefix_sums:
+                            cur_chance *= prefix_sum.get(v, 0)
+                        prev_chance, cur_chance = cur_chance, cur_chance-prev_chance
+                        one_die.append((v, cur_chance))
+                    dist_set = [one_die]
+                else:
+                    one_die_ = {}
+                    def g_(vals_, l_, n_):
+                        if len(vals_) == 1:
+                            for val, n in vals_[0]:
+                                v = op(l_+[val])
+                                if v not in one_die_:
+                                    one_die_[v] = 0
+                                one_die_[v] += n_*n
+                        else:
+                            for val, n in vals_[0]:
+                                g_(vals_[1:], l_+[val], n_*n)
+                    g_(dist_set, [], 1)
+                    dist_set = [list(one_die_.items())]
+            one_die = dist_set[0]
+            if dc is None and not raw:
+                # For average, just calculate each Dice individually
+                # dice_mult is number of dice (after aggregating those with kh/pl)
+                # mult is +1 or -1
+                result[1] += mult*dice_mult*sum(v*n for v,n in one_die)
+            else:
+                one_die = [(mult*v, round(n, 8)) for v, n in one_die if n > 0]
+                one_die.sort()
+                one_die = tuple(one_die)
+                if one_die not in d_vals:
+                    d_vals[one_die] = 0
+                d_vals[one_die] += dice_mult
     if dc is None and not raw:
         # For average, we know the result already now
         return result[1]
@@ -449,6 +698,8 @@ def flat_parse(dice):
     try:
         if typeof(dice) == 'str':
             expr = vroll(dice).raw.roll
+        elif typeof(dice) in ['Expression', 'Literal', 'UnOp', 'BinOp', 'Parenthetical', 'Set', 'Dice', 'Die']:
+            expr = dice
         else:
             expr = dice.raw.roll
     except:
@@ -481,6 +732,8 @@ def flat_parse(dice):
 def dfs(dice, accept=None, func=None, nested=True):
     if typeof(dice) == 'str':
         expr = vroll(dice).raw.roll
+    elif typeof(dice) in ['Expression', 'Literal', 'UnOp', 'BinOp', 'Parenthetical', 'Set', 'Dice', 'Die']:
+        expr = dice
     else:
         expr = dice.raw.roll
     result = []
@@ -515,3 +768,4 @@ def dfs(dice, accept=None, func=None, nested=True):
             func(expr)
     _dfs(expr)
     return result
+

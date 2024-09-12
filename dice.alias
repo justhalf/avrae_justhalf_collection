@@ -31,6 +31,8 @@ desc = (f'Calculates statistics of simple dice expressions.\n\n'
         f'or "at least" (>)\n'
         f'  For example, `!{al_name} prob 1d20 -dc 13` should show the same probability as '
         f'`!{al_name} stats 1d20 -op >` at the value 13\n\n'
+        f'You can also add a custom phrase at the end by adding `-phrase <your text>`, like so:\n'
+        f'`!{al_name} prob 1d20+7 -dc 17 -phrase "Chance to hit Orc"`\n\n'
         f'**Setup**\n'
         f'You can set `!uvar diceDisplayWidth 30` to change the width of the distribution display '
         f'for `!{al_name} stats <dice_str>`. The default value is 20.')
@@ -61,6 +63,10 @@ if subc not in SUBCS:
     warns.append(f'Accepted first argument are {SUBCS} but found `{subc}`')
     return show_help()
 
+k_args, l_args = jh.take_args(args, {'-dc':True, '-phrase':True, '-op':True})
+if k_args['-phrase']:
+    fs.append({'title':'Comment', 'body':'\n'.join(k_args['-phrase'])})
+
 if subc == 'avg':
     if len(args) < 2:
         warns.append(f'Please specify a dice expression')
@@ -70,10 +76,10 @@ if subc == 'avg':
     return jh.embed(
         title='Dice Average',
         desc=(f'Dice expression: {dice}\nAverage: {avg:.1f}'),
+        fields=fs,
         f_thumb=None,
         )
 elif subc == 'prob':
-    k_args, l_args = jh.take_args(args, {'-dc':True})
     dc = k_args['-dc']
     if dc == []:
         warns.append(f'Please specify a DC with `-dc <dc>`')
@@ -90,6 +96,7 @@ elif subc == 'prob':
     return jh.embed(
         title='Dice Probability',
         desc=(f'Dice expression: {dice}\nDC: {dc}\nChance of success: {prob*100:.2f}%'),
+        fields=fs,
         f_thumb=None,
         )
 elif subc == 'stats':
@@ -98,7 +105,6 @@ elif subc == 'stats':
         return show_help()
     dice = args[1]
     op = p_args.last('op', '=')
-    fs = []
     if op not in '<=>':
         op = '='
         fs.append({'title':'Warning :warning:',
@@ -108,7 +114,7 @@ elif subc == 'stats':
     dist = dicelib.dist(dice)
     minval = min(v for v, n in dist)
     maxval = max(v for v, n in dist)
-    maxlen = max(len(str(v)) for v, n in dist)
+    maxlen = max(len(str(int(round(v)))) for v, n in dist)
     maxn = 0
     mode = 0
     modeidx = 0
@@ -147,7 +153,7 @@ elif subc == 'stats':
         fill_c = '█'
         empty_c = ' '
         bar = f'`|{fill_c*fill}{half_c*half}{empty_c*empty}|` {p:.2f}%'
-        dist_s.append(f'`{v:>{maxlen}d}`: {bar}')
+        dist_s.append(f'`{int(round(v)):>{maxlen}d}`: {bar}')
     if start_idx != 0 or end_idx != len(dist_s):
         dist_title = f'Distribution (truncated around mode):'
     else:
@@ -162,13 +168,12 @@ elif subc == 'stats':
         title='Dice Statistics',
         desc=(f'Dice expression: {dice}\n'
               f'Average: {avg:.1f}\n'
-              f'Minimum: {minval:d}\n'
-              f'Maximum: {maxval:d}\n'
-              f'Mode: {mode:d}\n'
+              f'Minimum: {minval:g}\n'
+              f'Maximum: {maxval:g}\n'
+              f'Mode: {mode:g}\n'
               f'Operator: {op_s}\n'
               f'{dist_title}\n{dist_s}'),
         fields=fs,
         f_thumb=None,
         )
 </drac2>
-

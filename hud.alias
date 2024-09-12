@@ -14,7 +14,16 @@ args = &ARGS&
 if args and args[0] in ['?', 'help']:
     return jh.embed(
         title=f'{char.name}',
-        desc=(f'Displays handy statistics of the current character.\n\n'
+        desc=(f'Show a compact summary of your character\'s statistics, spell slots, and custom counters.\n\n'
+              f'__Usage__:\n'
+              f'`!{al_name} (filters)* (-h)`\n'
+              f'* Like `!bag`, you can show only selected categories by supplying the name, accepting partial matches '
+              f'and multiple matches:\n'
+              f' * `!{al_name} spell` will list just your spell slots\n'
+              f' * `!{al_name} ammo too` will list your quiver (including used and stored) and tattoos\n'
+              f'* For ammunitions, those with 0 counts beyond the first three are hidden by default. '
+              f'To show all, use `!{al_name} -h`\n\n'
+              f'__Customizing the Sections__\n'
               f'Customize the order by setting the cvar `hudOrder` as a JSON list.\n'
               f'Available categories:\n'
               f'- `char`: General Character Stats\n'
@@ -27,15 +36,17 @@ if args and args[0] in ['?', 'help']:
               f'- `tattoo`: Tattoo (contains "tattoo")\n'
               f'- `tracker`: Any other trackers\n'
               f'Add `^` at the end of the name to make it inline\n\n'
-              f'Example (default order): `!cvar hudOrder ["char","spell","cc","quiver^","used^","storage^","item","tattoo","tracker"]`\n\n'
-              f'Define which CCs are items by listing them in the cvar `hudItemCCs` as a JSON list.\n\n'
-              f'Like `!bag`, show only selected categories by supplying the name, accepting partial matches and multiple matches:\n'
-              f'* `!{al_name} spell` will list just your spell slots\n'
-              f'* `!{al_name} quiv tat` will list your quiver and tattoos'),
+              f'Example (default order): `!cvar hudOrder ["char","spell","cc","quiver^","used^","storage^",'
+              f'"item","tattoo","tracker"]`\n\n'
+              f'__Defining Items__\n'
+              f'Define which CCs are considered to be in the `item` category by listing the names in the '
+              f'cvar `hudItemCCs` as a JSON list. By default, items not matching any other categories will be put '
+              f'in `cc` (if it has max) or `tracker` (if it has no max).'
+              ),
         f_thumb=False,
         )
 
-k_args, p_args = jh.take_args(args, {'-h':False})
+k_args, l_args = jh.take_args(args, {'-h':False})
 show_all = bool(k_args['-h'])
 
 # Constants
@@ -234,12 +245,22 @@ for cls, lvl in char.levels:
 classes_s = '\n'.join(classes)
 
 # Output order
+hud_title = {'char': 'Character Stats',
+             'spell': 'Spell Slots',
+             'cc': 'Limited Abilities',
+             'quiver': 'Ammo in Quiver',
+             'used': 'Ammo used',
+             'storage': 'Ammo in Storage',
+             'item': 'Items',
+             'tattoo': 'Tattoos',
+             'tracker': 'Tracker',
+             }
 def_order = ['char', 'spell', 'cc', 'quiver^', 'used^', 'storage^', 'item', 'tattoo', 'tracker']
 order = load_json(get('hudOrder', dump_json(def_order)))
 order = [i for i in order if any(i.rstrip('^') == s.rstrip('^') for s in def_order)]
 
-if p_args:
-    order = [i for i in order if any(arg in i for arg in p_args)]
+if l_args:
+    order = [i for i in order if any((arg in i or arg in hud_title.get(i.strip('^'), '').lower()) for arg in l_args)]
 
 desc = (f'**Level**: {char.levels.total_level}\n'
         f'**Classes**\n{classes_s}\n'
@@ -253,24 +274,25 @@ fs = []
 for i in order:
     inline = i[-1] == '^'
     i = i.rstrip('^')
+    section_title = hud_title.get(i, '')
     if i == 'char':
-        fs.append({'title':'Character Stats','body':desc})
+        fs.append({'title':section_title,'body':desc})
     if i == 'spell' and spellslots:
-        fs.append({'title':f'Spell Slots (DC {SpellDC}, {SpellSAB or 0:+} to Hit)', 'body':spellslots, 'inline':inline})
+        fs.append({'title':f'{section_title} (DC {SpellDC}, {SpellSAB or 0:+} to Hit)', 'body':spellslots, 'inline':inline})
     if i == 'cc' and cc:
-        fs.append({'title':f'Limited Abilities', 'body':cc, 'inline':inline})
+        fs.append({'title':section_title, 'body':cc, 'inline':inline})
     if i == 'quiver' and ammunition:
-        fs.append({'title':f'Ammo in Quiver', 'body':ammunition, 'inline':inline})
+        fs.append({'title':section_title, 'body':ammunition, 'inline':inline})
     if i == 'used' and used_ammunition:
-        fs.append({'title':f'Ammo used', 'body':used_ammunition, 'inline':inline})
+        fs.append({'title':section_title, 'body':used_ammunition, 'inline':inline})
     if i == 'storage' and stored_ammunition:
-        fs.append({'title':'Ammo in Storage', 'body':stored_ammunition, 'inline':inline})
+        fs.append({'title':section_title, 'body':stored_ammunition, 'inline':inline})
     if i == 'item' and item_ccs:
-        fs.append({'title':f'Items', 'body':item_ccs, 'inline':inline})
+        fs.append({'title':section_title, 'body':item_ccs, 'inline':inline})
     if i == 'tattoo' and tattoos:
-        fs.append({'title':f'Tattoos', 'body':tattoos, 'inline':inline})
+        fs.append({'title':section_title, 'body':tattoos, 'inline':inline})
     if i == 'tracker' and trackers:
-        fs.append({'title':f'Tracker', 'body':trackers, 'inline':inline})
+        fs.append({'title':section_title, 'body':trackers, 'inline':inline})
 return jh.embed(
     title=f'{char.name}',
     fields=fs,

@@ -18,6 +18,7 @@ p_args = argparse(args)
 # Alias begins here
 fs = []
 warns = []
+errs = []
 
 desc = (f'Calculates statistics of simple dice expressions.\n\n'
         f'__Usage__:\n'
@@ -38,9 +39,9 @@ desc = (f'Calculates statistics of simple dice expressions.\n\n'
         f'for `!{al_name} stats <dice_str>`. The default value is 20.')
 
 def show_help():
-    if warns:
-        warns_s = '\n* '.join(['']+warns)
-        fs.append({'title':'Warning :warning:', 'body':warns_s})
+    if errs:
+        errs_s = '\n* '.join(['']+errs)
+        fs.append({'title':'Error :x:', 'body':errs_s})
     return jh.embed(
         title='Dice Manual',
         desc=desc,
@@ -60,18 +61,21 @@ except:
 
 subc = args[0].lower()
 if subc not in SUBCS:
-    warns.append(f'Accepted first argument are {SUBCS} but found `{subc}`')
+    errs.append(f'Accepted first argument are {SUBCS} but found `{subc}`')
     return show_help()
 
 k_args, l_args = jh.take_args(args, {'-dc':True, '-phrase':True, '-op':True})
 if k_args['-phrase']:
     fs.append({'title':'Comment', 'body':'\n'.join(k_args['-phrase'])})
 
+dice = ' '.join(l_args[1:])
+
+if not dice:
+    errs.append(f'Please specify a dice expression')
+
 if subc == 'avg':
-    if len(args) < 2:
-        warns.append(f'Please specify a dice expression')
+    if errs:
         return show_help()
-    dice = args[1]
     avg = dicelib.avg(dice)
     return jh.embed(
         title='Dice Average',
@@ -82,12 +86,9 @@ if subc == 'avg':
 elif subc == 'prob':
     dc = k_args['-dc']
     if dc == []:
-        warns.append(f'Please specify a DC with `-dc <dc>`')
-    if len(l_args) < 2:
-        warns.append(f'Please specify a dice expression')
-    if warns:
+        errs.append(f'Please specify a DC with `-dc <dc>`')
+    if errs:
         return show_help()
-    dice = l_args[1]
     try:
         dc = int(dc[-1])
     except:
@@ -100,15 +101,13 @@ elif subc == 'prob':
         f_thumb=None,
         )
 elif subc == 'stats':
-    if len(args) < 2:
-        warns.append(f'Please specify a dice expression')
+    if errs:
         return show_help()
-    dice = args[1]
-    op = p_args.last('op', '=')
+    op = (['=']+k_args['-op'])[-1]
     if op not in '<=>':
+        warns.append({'title':'Warning :warning:',
+                      'body':f'Operator `-op` needs to be one of "<", "=", ">". Found "{op}", defaulting to "=".'})
         op = '='
-        fs.append({'title':'Warning :warning:',
-                   'body':f'Operator `-op` needs to be one of "<", "=", ">". Found "{op}", defaulting to "=".'})
     op_s = {'<':'at most', '=':'exactly', '>':'at least'}[op]
     op_s = f'{op_s} ("{op}")'
     dist = dicelib.dist(dice)
@@ -173,7 +172,7 @@ elif subc == 'stats':
               f'Mode: {mode:g}\n'
               f'Operator: {op_s}\n'
               f'{dist_title}\n{dist_s}'),
-        fields=fs,
+        fields=fs+warns,
         f_thumb=None,
         )
 </drac2>

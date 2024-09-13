@@ -10,6 +10,7 @@ jh.setup(
 using(bl=jh.LIB['baglib'])
 
 ch = character()
+type_cvar = 'oilTypeDefault'
 
 args = &ARGS&
 if args and not args[0].startswith('-'):
@@ -23,13 +24,14 @@ if args.get('h') or el.lower() in ['', '?', 'help']:
         title='Blade Oil Alias Manual',
         desc=(f'Applies Blade Oil with the specified element, with optional bag management.\n\n'
               f'**Usage**:\n'
-              f'`!oil <element> [-i] [-type {{ammo,blade}}] [-bag <bagName>]* [-t <target>]*`\n\n'
-              f'`-bag`: Bag names can be provided to search only those bags.\n'
-              f'`-type`: specifies whether it\'s applied to ammo or blade. If it\'s ammo, a custom counter '
+              f'`!oil <element> [-i] [-type {{ammo,blade}}] [-bag <bagName>]* [-t <target>]*`\n'
+              f'* `-bag`: Bag names can be provided to search only those bags.\n'
+              f'* `-type`: specifies whether it\'s applied to ammo or blade. If it\'s ammo, a custom counter '
               f'will be created to track the 6 ammunitions coated with this blade oil application. '
-              f'Defaults to `ammo`. Not used if targetting other combatants with `-t`.\n'
-              f'`-i`: will ignore bag management\n'
-              f'`-t <target>`: applies the Blade Oil effect to the specified target(s) instead. This will '
+              f'Defaults to `ammo`. Not used if applying the oil to another combatant with `-t`.\n'
+              f'  * You can setup the default application type with `!cvar {type_cvar} ammo|blade` accordingly\n'
+              f'* `-i`: will ignore bag management\n'
+              f'* `-t <target>`: applies the Blade Oil effect to the specified target(s) instead. This will '
               f'automatically ignore bag management.\n\n'
               f'**Bag management**\n'
               f'This alias will look for items named "Blade Oil (element)" or "element Blade Oil" in all '
@@ -65,16 +67,16 @@ else:
 uniq, mult, none = jh.resolve_targets(ts)
 if mult:
     mult_s = '\n* '.join(['']+[f'{t}: {", ".join(comb.name for comb in combs)}' for t, combs in mult])
-    warns.append({'title':'Some targets have multiple matches',
+    warns.append({'title':'Some targets have multiple matches :x:',
                   'body':f'The following targets have multiple matches:\n{mult_s}',
                   })
 if none:
     none_s = '\n* '.join(['']+[t for t, _ in none])
-    warns.append({'title':'Some targets have no matches',
+    warns.append({'title':'Some targets have no matches :x:',
                   'body':f'The following targets have no matches:\n{none_s}',
                   })
 if has_target and (mult or none):
-    out['title'] = 'Fail to apply blade oil to targets!'
+    out['title'] = 'Fail to apply blade oil to targets! :x:'
     out['desc'] = (f'Some targets specified, but no valid targets found or they have multiple matches. '
                    f'Nothing has been done.\n'
                    f'If you want to apply the blade oil effect to yourself, no need to specify targets. '
@@ -83,10 +85,16 @@ if has_target and (mult or none):
     fs.extend(warns)
     return jh.embed(**out, f_thumb=False)
 
-apply_type = args.last('type', 'ammo').lower()
+type_from_cvar = False
+apply_type = ch.get_cvar(type_cvar, None)
+if apply_type is not None:
+    type_from_cvar = True
+else:
+    apply_type = args.last('type', 'ammo').lower()
 if apply_type not in ['ammo', 'blade']:
-    fs.append({'title':'Invalid application type',
-               'body':(f'`{apply_type}` is not a valid application type. '
+    extra_s = f' (from `!cvar {type_cvar}`)' if type_from_cvar else ''
+    fs.append({'title':'Invalid application type :warning:',
+               'body':(f'`{apply_type}`{extra_s} is not a valid application type. '
                        f'Choose either `ammo` or `blade`. Defaulting to `ammo` now.\n'
                        f'To use as non-ammo, simply remove the custom counter by running:\n'
                        f'`!cc delete "{item_name}"`')
@@ -169,11 +177,11 @@ if ignore_bag or found_item:
             if bag[0] == found_bag[0]:
                 bag[1] = found_bag[1]
         bl.save_bags(bags)
-        fs.append({'title':'Bag Management',
+        fs.append({'title':'Bag Management :white_check_mark:',
                    'body':f'Removed "{found_item}" x1 from **{found_bag[0]}**',
                    })
     else:
-        fs.append({'title':'Bag Management',
+        fs.append({'title':'Bag Management :information_source:',
                    'body':f'`-i` supplied or targets specified, bag management ignored.',
                    })
 
@@ -182,11 +190,11 @@ if ignore_bag or found_item:
         if ch.cc_exists(item_name):
             counter = ch.cc(item_name)
             counter.mod(6)
-            cc_op_title = f'Updated counter: {counter.name}'
+            cc_op_title = f'Updated counter: {counter.name} :white_check_mark:'
         else:
             counter = ch.create_cc(item_name, 0, initial_value=6,
                                      desc=f'{item_name} applied to ammo. Lasts 1 minute.')
-            cc_op_title = f'Created counter: {counter.name}'
+            cc_op_title = f'Created counter: {counter.name} :white_check_mark:'
         fs.append({'title':cc_op_title,
                    'body':(f'{counter.desc}\n{counter.full_str()}\n'
                            f'__**Note**__: If you intended this to not be ammo, you can delete this CC with '
@@ -196,7 +204,7 @@ if ignore_bag or found_item:
     if not has_target:
         if combat() and combat().me:
             combat().me.add_effect(item_name, duration=10)
-            fs.append({'title':'Effect',
+            fs.append({'title':'Effect :placard:',
                        'body':f'Added effect {item_name} to {combat().me.name} [1 minute]',
                        })
     else:
@@ -205,10 +213,10 @@ if ignore_bag or found_item:
             comb.add_effect(item_name, duration=10)
             eff.append(f'Added effect {item_name} to {comb.name} [1 minute]')
         eff_s = '\n'.join(eff)
-        fs.append({'title':'Effect',
+        fs.append({'title':'Effect :placard:',
                    'body':eff_s})
 
-    fs.append({'title':'Snippet: `oil`',
+    fs.append({'title':'Snippet: `oil` :information_source:',
                'body':(f'You can now use the `oil` snippet to apply the extra 1d4 damage.\n'
                        f'The damage type will be automatically read from the effect, as long as the effect is named '
                        f'"Blade Oil (<damage type here>)"\n'
@@ -220,12 +228,12 @@ if ignore_bag or found_item:
 else:
     out['title'] = f'{jh.ch_name()} does not have any {item_name} to apply!'
     out['desc'] = f'Specify `-i` to ignore bag management\nRun `!oil help` for more info'
-    fs.append({'title':'Error',
+    fs.append({'title':'Error :x:',
                'body':(f'No items named "{el.title()} Blade Oil" or "Blade Oil ({el.lower()})" found in '
                        f'the specified bags.'),
                })
     if has_names:
-        fs.append({'title':'Error',
+        fs.append({'title':'Error :x:',
                    'body':(f'The bag{"s" if len(missed_bags)>1 else ""} {", ".join(missed_bags)} '
                            f'do{"es" if len(missed_bags)==1 else ""} not contain {item_name}'),
                    })

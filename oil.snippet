@@ -57,7 +57,7 @@ if combat():
 
   cc = f'Blade Oil ({dmg_type})'
   if not ch.cc_exists(cc) or ch.get_cc(cc):
-   amt = 1
+   amt = ''
    if ch.cc_exists(cc):
     arg_o = argparse(args)
     amt = int(arg_o.last('rr', '1')) * len(arg_o.get('t',['']))

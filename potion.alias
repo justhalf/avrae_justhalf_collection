@@ -384,6 +384,8 @@ ignore_bag = bool(k_args['nobag'])
 bag_names = k_args['-bag']
 nomap = bool(k_args['nomap'])
 choice = (k_args['-choice']+[None])[0]
+if choice is not None:
+    choice = str(choice)
 try:
     if int(get('potionNobag', '0')):
         ignore_bag = True
@@ -489,9 +491,9 @@ else:
         k_choice = ([k for k in p_choices if choice.lower() in k.lower()]+[None])[0]
 if k_choice is None:
     # If there are multiple options but the given -choice is not one of them, error and warn the player
-    fs.append([{'title':'Invalid potion option! :x:',
-                'body':f'The choice "{choice}" it not a valid `-choice` for {p_name}.\nValid choices are:\n{valid_s}'
-                }])
+    fs.append({'title':'Invalid potion option! :x:',
+               'body':f'The choice "{choice}" it not a valid `-choice` for {p_name}.\nValid choices are:\n{valid_s}'
+               })
     return jh.embed(
         title=f'{ch.name} picked an invalid option :x:',
         desc=f'{ch.name} is attempting to use {p_name}.',
@@ -617,8 +619,7 @@ for t_arg, [target] in t_uniq:
                     existing_ef = target.get_effect(ef_name)
                 else:
                     existing_ef = None
-                if existing_ef:
-                    existing_dur = existing_ef.duration
+                if existing_ef and (existing_dur := existing_ef.duration):
                     ef_dur_roll = vroll(f'({ef_dur},{existing_dur})kh1')
                 else:
                     ef_dur_roll = vroll(ef_dur)
@@ -641,8 +642,7 @@ for t_arg, [target] in t_uniq:
                     existing_ef = target.get_effect(ef_name)
                 else:
                     existing_ef = None
-                if existing_ef:
-                    existing_dur = existing_ef.duration
+                if existing_ef and (existing_dur := existing_ef.duration):
                     ef_dur_roll = vroll(f'({ef_dur},{existing_dur})kh1')
                     ef_dur_s = str(ef_dur_roll)
                     ef_dur = ef_dur_roll.total

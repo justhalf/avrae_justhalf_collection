@@ -7,6 +7,10 @@ jh.setup(
         al_name=al_name,
         footer=footer,
         )
+# To ensure vsformat can fix the incompatibility with original !tool
+using(tools='7199bdac-0b00-48db-86cf-bd53a8d4d5b6') # This is modified toollib, used in ER
+tools.ensure_compatibility()
+tools.overwrite_display_cvars()
 
 ch = character()
 

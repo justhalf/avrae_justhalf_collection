@@ -31,7 +31,7 @@ cvars = {
         }
 
 def fmt(val, reset=False, force_split=False):
-    val = val.strip('\n\t *."').replace('\n* and', '').replace('\n* ', ', ')
+    val = val.strip('\n\t *."').replace('\n* and', '').replace('\n* ', ', ').replace('\n*', ', ')
     if reset: return val
     if not force_split and ',' not in val: return val
     vals = [v.strip('\n\t *.') for v in val.split(',')]

@@ -25,7 +25,8 @@ desc = (f'Calculates statistics of simple dice expressions.\n\n'
         f'`!{al_name} avg <dice_str>`\n'
         f'* Returns the average of the dice expression\n\n'
         f'`!{al_name} prob <dice_str> -dc <dc>`\n'
-        f'* Returns the probability of the dice beating (equal or higher) the DC\n\n'
+        f'* Returns the probability of the dice beating (equal or higher) the DC\n'
+        f'  The DC can be a dice expression\n\n'
         f'`!{al_name} stats <dice_str> (-op <|=|>)`\n'
         f'* Returns statistical summary of the dice (min, max, avg, distribution, etc.)\n'
         f'* The `-op` argument controls the displayed distribution, whether to show "at most" (<), "equal" (=), '
@@ -89,11 +90,8 @@ elif subc == 'prob':
         errs.append(f'Please specify a DC with `-dc <dc>`')
     if errs:
         return show_help()
-    try:
-        dc = int(dc[-1])
-    except:
-        dc = float(dc[-1])
-    prob = dicelib.prob(dice, dc)
+    dc = dc[-1]
+    prob = dicelib.prob(f'{dice}-({dc})', dc=0)
     return jh.embed(
         title='Dice Probability',
         desc=(f'Dice expression: {dice}\nDC: {dc}\nChance of success: {prob*100:.2f}%'),

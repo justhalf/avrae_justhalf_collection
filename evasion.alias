@@ -1,6 +1,6 @@
 <drac2>
 al_name = 'evasion'
-footer = f'!{al_name} -amt <dmg> pass|fail | Evasion alias by justhalf'
+footer = f'!{al_name} -amt <dmg> pass|fail (-t <target>) | Evasion alias by justhalf'
 
 using(jh='65a30ab9-540c-4bdf-86ce-7af4760604a9')
 jh.setup(
@@ -10,81 +10,177 @@ jh.setup(
 
 ch = character()
 args = &ARGS&
+co = combat()
 
 abl_desc = (f'When you are subjected to an effect that allows you to make a Dexterity saving throw to take only half '
             f'damage, you instead take no damage if you succeed on the saving throw, and only half damage if you fail.')
+help_desc = (
+            f'{abl_desc}\n\n'
+            f'**Usage**:\n'
+            f'`!{al_name} -amt <damage> pass|fail`\n'
+            f'* `-amt <damage>`: the actual damage received.\n'
+            f'* `pass|fail`: whether the Dexterity save was a success (`pass`) or a failure (`fail`).\n'
+            f'* `-t <target>`: optional targets, to use the evasion on the targets instead of your current '
+            f'active character.\n\n'
+            f'`!{al_name} -amt <damage> pass|fail (-t "target|-amt <damage> <pass or fail>")*`\n'
+            f'* You can specify target-specific argument to override the general one.\n\n'
+            f'**Examples**\n'
+            f'`!{al_name} -amt 13 -t monk1|pass -t monk2|pass -t "rogue|-amt 6 fail"`\n'
+            f'* Evasion of 13 damage with monk1 and monk2 passing their saves, while the resistant rogue failed.'
+            )
 
 if not args or args[0] in ['?', 'help']:
     return jh.embed(
         title='Evasion Alias',
-        desc=(
-            f'{abl_desc}\n\n'
-            f'**Usage**:\n'
-            f'`!{al_name} -amt <damage> pass|fail`\n'
-            f'* `-amt <damage>`: the actual damage received.\n'
-            f'* `pass|fail`: whether the Dexterity save was a success (`pass`) or a failure (`fail`).'
-            ),
+        desc=help_desc,
     )
 
-args = argparse(args)
-amt = int(args.last('amt', '0'))
-f_fail = args.last('fail', None)
-f_pass = args.last('pass', None)
-if f_fail is None and f_pass is None:
-    return jh.embed(
-        title='Evasion alias',
-        desc=(
-            f'{abl_desc}\n\n'
-            f'**Usage**:\n'
-            f'`!{al_name} -amt <damage> pass|fail`\n'
-            f'* `-amt <damage>`: the actual damage received.\n'
-            f'* `pass|fail`: whether the Dexterity save was a success (`pass`) or a failure (`fail`).'
-            ),
-        fields=[{'title':'Error', 'body':'Need to specify `pass` or `fail`.'}],
-    )
-fail = bool(f_fail) or not bool(f_pass)
+p_args = argparse(args)
+amt = int(p_args.last('amt', '0'))
+f_fail = p_args.last('fail', None)
+f_pass = p_args.last('pass', None)
 me = None
 
-if not fail:
-    dmg = 0
-    pass_s = 'success'
-    dmg_s = f'{amt} * 0 = 0'
-else:
-    dmg = amt//2
-    pass_s = 'failure'
-    dmg_s = f'{amt} / 2 = {dmg}'
-heal = amt-dmg
-desc = (
-        f'Dex save was a __**{pass_s}**__!\n'
-        f'**Damage received**: {amt}\n'
-        f'**With Evasion**: {dmg_s}\n'
-        f'**Damage prevented**: {amt} - {dmg} = {heal}'
-        )
 fs = []
 fs.append({'title':'Effect', 'body':abl_desc})
 footer = None
-me = None
-name = ch.name
-if combat():
-    me = combat().me
-if me:
-    is_zero = me.hp == 0
-    me.set_hp(me.hp + heal)
-    footer = f'{me.name}: {me.hp_str()} ({heal:+d})'
-    name = me.name
-    if is_zero:
-        fs.append({'title':'Zero HP Warning',
-                   'body':(f'{name} was at 0 HP before this command is run. Healing amount may be incorrect if there '
-                           f'were excess damage.\nPlease correct the final HP manually, by reducing the HP by the '
-                           f'amount of excess damage.\n\nFor example, if the excess damage was X, then reduce current '
-                           f'HP by X with\n`!i hp "{name}" -X`'),
-                   })
+
+warns = []
+errs = []
+
+k_args, l_args = jh.take_args(args, {'-t':True})
+# Verifying the targets
+t_uniq, t_mult, t_none = [], [], []
+if not co:
+    # Not in combat, so target self
+    t_uniq.append(('*default*', [ch]))
+    if k_args['-t']:
+        # Not in combat, but target specified, warn
+        warns.append({'title':'Not in combat :warning:',
+                      'body':('Can only target your own active character when not in combat. '
+                              'The other targets are ignored.')})
+elif not k_args['-t']:
+    # In combat, but no target, target self in combat if joined
+    if co.me:
+        t_uniq.append(('*default*', [co.me]))
+    else:
+        t_uniq.append(('*default*', [ch]))
 else:
-    fs.append({'title':f'{ch.name} not in combat', 'body':f'No HP changes performed.'})
+    # In combat and there are targets
+    t_uniq, t_mult, t_none = jh.resolve_targets(k_args['-t'])
+    if t_mult:
+        mult = [f'* {t_arg} → {", ".join(t.name for t in ts)}' for t_arg, ts in t_mult]
+        mult_s = '\n'.join(mult)
+        mult_s = mult_s.replace('"', '\\"')
+        errs.append({'title':'Ambiguous Targets :x:', 'body':f'These targets match multiple combatants:\n{mult_s}'})
+    if t_none:
+        none = [f'* {t_arg}' for t_arg, _ in t_none]
+        none_s = '\n'.join(none)
+        none_s = none_s.replace('"', '\\"')
+        errs.append({'title':'Missing Targets :x:', 'body':f'These targets do not match any combatants:\n{none_s}'})
+if errs:
+    uniq = [f'* {t_arg} → {ts[0].name}' for t_arg, ts in t_uniq]
+    uniq_s = '\n'.join(uniq)
+    uniq_s = uniq_s.replace('"', '\\"')
+    if len(t_uniq):
+        uniq = [f'* {t_arg}: {ts[0].name}' for t_arg, ts in t_uniq]
+        uniq_s = '\n'.join(uniq)
+        uniq_s = uniq_s.replace('"', '\\"')
+        return jh.embed(
+            title=f'Failed to use Evasion! :x:',
+            desc=(f'{help_desc}\n\n'
+                  f'**__Error__**: These targets are confirmed valid:\n{uniq_s}\n'
+                  f'But there are ambiguous or invalid targets.\n'
+                  f'__No evasion effect has been applied to anyone.__'
+                  ),
+            fields=errs+warns,
+            )
+    else:
+        return jh.embed(
+            title=f'Failed to use Evasion! :x:',
+            desc=(f'{help_desc}\n\n'
+                  f'**__Error__**: There are ambiguous or invalid targets.\n'
+                  f'__No evasion effect has been applied to anyone.__'
+                  ),
+            fields=errs+warns,
+            f_thumb=False,
+            )
+
+if amt == 0:
+    warns.append({'title':'No damage specified',
+                  'body':f'Specify the damage taken with `-amt <damage>`'})
+hp_changes_fs = []
+footers = []
+no_pass_targets = []
+zero_hp_targets = []
+for t_arg, (target,) in t_uniq:
+    name = target.name
+    t, arg = (t_arg.split('|', maxsplit=1)+[None])[:2]
+    p_args.add_context(t, argparse(arg) if arg else {})
+    p_args.set_context(t)
+    cur_amt = int(p_args.last('amt', '0'))
+    cur_f_fail = p_args.last('fail', None)
+    cur_f_pass = p_args.last('pass', None)
+    p_args.set_context(None)
+
+    if cur_f_fail is None and cur_f_pass is None:
+        no_pass_targets.append(target.name)
+        continue
+    fail = bool(cur_f_fail) or not bool(cur_f_pass)
+    if not fail:
+        dmg = 0
+        pass_s = 'success'
+        dmg_s = f'{amt} * 0 = 0'
+    else:
+        dmg = amt//2
+        pass_s = 'failure'
+        dmg_s = f'{amt} / 2 = {dmg}'
+    heal = amt-dmg
+    desc = (
+            f'Dex save was a __**{pass_s}**__!\n'
+            f'**Damage received**: {amt}\n'
+            f'**With Evasion**: {dmg_s}\n'
+            f'**Damage prevented**: {amt} - {dmg} = {heal}'
+            )
+    hp_changes_fs.append({'title':f'**{name}**','body':desc})
+    if co:
+        is_zero = (not target.is_hidden and target.hp == 0)
+        target.set_hp(target.hp + heal)
+        footers.append(f'{name}: {target.hp_str()} ({heal:+d})')
+        if is_zero:
+            zero_hp_targets.append(target.name)
+    else:
+        fs.append({'title':f'{name} not in combat', 'body':f'No HP changes performed.'})
+if no_pass_targets:
+    target_s = ', '.join(no_pass_targets)
+    return jh.embed(
+        title='Evasion alias',
+        desc=help_desc,
+        fields=[{'title':'Error :x:', 'body':f'Missing `pass` or `fail` for {target_s}.'}],
+    )
+if zero_hp_targets:
+    if len(zero_hp_targets) == 1:
+        target_s = f'{zero_hp_targets[0]} was'
+    elif len(zero_hp_targets) == 2:
+        target_s = f'{zero_hp_targets[0]} and {zero_hp_targets[1]} were'
+    else:
+        target_s = ', '.join(zero_hp_targets[:-1])+f', and {zero_hp_targets[-1]} were'
+    warns.append({'title':'Zero HP Warning',
+               'body':(f'{target_s} at 0 HP before this command is run. Healing amount may be incorrect if there '
+                       f'were excess damage that were not recorded.\n'
+                       f'Please check and correct the HP manually, by reducing the HP by the amount of excess '
+                       f'damage.\n\n'
+                       f'For example, if the excess damage was X, then reduce current HP by X with\n'
+                       f'`!i hp "<targetname>" -X`'),
+               })
+if len(t_uniq) == 1:
+    title = f'{name} used Evasion!'
+else:
+    title = f'Some creatures used Evasion!'
+footer = '\n'.join(footers)
 return jh.embed(
-        title=f'{name} used Evasion!',
-        desc=desc,
-        fields=fs,
+        title=title,
+        fields=hp_changes_fs+fs+warns,
         f_footer=footer,
         )
 </drac2>

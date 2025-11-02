@@ -16,9 +16,37 @@ p_args = argparse(args)
 
 # Alias begins here
 if args:
-    loc = args[0].capitalize()
+    loc, size, color, token, height = (args[0].split('|')+['','','','',''])[:5]
+    loc = loc.upper()
+    size = size.upper()
 else:
-    loc = ''
+    loc, size, color, token, height = '', '', '', '', ''
+SIZE_MAP = {'T':'T (Tiny)',
+            'S':'S (Small)',
+            'M':'M (Medium)',
+            'L':'L (Large)',
+            'H':'H (Huge)',
+            'G':'G (Gargantuan)',
+            }
+COLOR_MAP = {'w':'white',
+             'bk':'black',
+             'gy':'grey',
+             'r':'red',
+             'g':'green',
+             'b':'blue',
+             'y':'yellow',
+             'p':'purple',
+             'pk':'pink',
+             'c':'cyan',
+             'bn':'brown',
+             'o':'orange',
+           }
+if size:
+    size = SIZE_MAP.get(size, size)
+if color:
+    color_s = COLOR_MAP.get(color.lower()[:2], COLOR_MAP.get(color.lower()[:1], ''))
+    if color_s:
+        color = f'{color} ({color_s})'
 
 join_cvar = 'join'
 join_cmd = ch.get_cvar('join', None)
@@ -52,7 +80,7 @@ def escape(s):
 def argify(s):
     if typeof(s) == 'str':
         return '"""'+s.replace('"', '\\"')+'"""'
-    return '('+dump_json(s)+')'
+    return '('+dump_json(s).replace(': true', ': True').replace(': false', ': False')+')'
 
 def build_cmd(effects):
     code = ['ch = combat().me', 'effs=[]']
@@ -85,11 +113,15 @@ for join_cmd in join_cmds:
         continue
     elif fn == 'join':
         # Special function: join
+        fields = [field.split(': ', maxsplit=1) for field in join_cmd.get('note', '').split(' | ')]
+        note = {field[0].lower():field[1] for field in fields if len(field) == 2}
+        if loc: note['location'] = loc
+        if size: note['size'] = size
+        if color: note['color'] = color
+        if token: note['token'] = token
+        if height: note['height'] = height
+        join_cmd['note'] = ' | '.join(f'{key.title()}: {value}' for key, value in note.items() if value)
         if loc:
-            fields = [field.split(': ', maxsplit=1) for field in join_cmd.get('note', '').split(' | ')]
-            note = {field[0].lower():field[1] for field in fields if len(field) == 2}
-            note['location'] = loc
-            join_cmd['note'] = ' | '.join(f'{key.title()}: {value}' for key, value in note.items())
             phrase = join_cmd.get('phrase', '')
             join_cmd['phrase'] = (phrase + f'\n\n-# Placed at {loc}').strip('\n')
         join_args = ' '.join(f'-{key} "{escape(value)}"' for key, value in join_cmd.items() if key != 'fn')

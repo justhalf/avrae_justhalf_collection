@@ -1,5 +1,5 @@
 # GVAR: 65a30ab9-540c-4bdf-86ce-7af4760604a9
-# Module: jh (justhalf_utilities)
+# Module: jh_common (justhalf_utilities)
 # A collection of common tasks, functions, libraries, and constants for aliases
 #
 # LIB: a collection of gvar addresses for common libraries
@@ -198,7 +198,7 @@ def ch_name(force_actual=False):
         return character().name
     return C[CH_NAME]
 
-def resolve_targets(targets):
+def resolve_targets(targets, strict=False, include_groups=False):
     """Resolves the target names into combatant objects.
     
     Returns three lists:
@@ -209,19 +209,24 @@ def resolve_targets(targets):
     Total number of items across the three lists will equal total number of targets specified.
 
     If not in combat, will return empty lists for all three
+    If strict is True, will only consider exact match (default: False)
     """
     uniq, mult, none = [], [], []
     co = combat()
     if not co:
         return uniq, mult, none
+    combatants = co.combatants
+    if include_groups:
+        combatants += co.groups
     for t_arg in targets:
         t, _ = (t_arg.split('|', maxsplit=1)+[None])[:2]
         matches = []
-        for comb in co.combatants:
+        for comb in combatants:
             if t.lower() == comb.name.lower():
                 # Exact match, ignore everything else
                 matches = [comb]
                 break
+            if strict: continue
             if t.lower() in comb.name.lower():
                 matches.append(comb)
         if len(matches) == 1:

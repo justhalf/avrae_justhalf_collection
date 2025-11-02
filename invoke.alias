@@ -1,0 +1,212 @@
+<drac2>
+al_name = 'invoke'
+footer = f'!{al_name} ? | Manage "Invoke the Amaranthine" Dice'
+
+using(jh='65a30ab9-540c-4bdf-86ce-7af4760604a9')
+jh.setup(
+        al_name=al_name,
+        footer=footer,
+        )
+
+ch = character()
+
+args = &ARGS&
+
+# Alias begins here
+
+CVAR_INVOKE = 'invoke_amaranthine'
+
+INVOKE_DESC = ('You call upon the power of an Amaranthine to grant yourself insight into the Great Rhythm that moves '
+               'all things. When you cast this spell, roll two d20s, and record what you rolled. For each die, choose '
+               'either attack roll, skill check, or saving throw. You can choose each option multiple times. For the '
+               'next 24 hours, you may substitute any roll of an ally or enemy you can see within 60 feet with one of '
+               'the recorded numbers that matches the type of roll you wish to replace (attack roll, skill check, or '
+               'saving throw). The target still adds any relevant modifiers to this number but otherwise treats the '
+               'substituted number as the number they rolled.\n\n'
+               'To do this, you must spend a reaction to present your holy symbol and invoke the name of the '
+               'Amaranthine whose energies you called upon. You can do this any time after the skill check, saving '
+               'throw, or attack has been rolled, but before the outcome of the event has been determined. The spell '
+               'ends after 24 hours have passed, or when both dice have been expended.')
+
+def fmt(invoke_v, short=False, with_roll=False):
+    if short:
+        invoke_s = [f'**{r} [{kind}]**' if avail else f'~~**{r} [{kind}]**~~'
+                     for i, (r, avail, kind) in enumerate(invoke_v)]
+        invoke_s = ', '.join(invoke_s)
+    else:
+        if with_roll:
+            roll_sp = f'1d20 = '
+            roll_ss = f''
+        else:
+            roll_sp = ''
+            roll_ss = ''
+        invoke_s = [f'* :game_die: #{i+1} : {roll_sp}**{r} [{kind}]**{roll_ss}' if avail else
+                     f'* ~~:game_die: #{i+1} : {roll_sp}**{r} [{kind}]**~~{roll_ss} (used)'
+                     for i, (r, avail, kind) in enumerate(invoke_v)]
+        invoke_s = '\n'.join(invoke_s)
+    if not invoke_v:
+        invoke_s = '*No Invoke the Amaranthine rolls yet*'
+    return invoke_s
+
+def apply(ch):
+    fs = []
+
+    data = load_json(ch.get_cvar(CVAR_INVOKE, '{}'))
+
+    n_die = 2
+    invoke_v = [(vroll('1d20').total, True, '*unassigned*') for _ in range(n_die)]
+
+    fs.append({'title': 'Invoke the Amaranthine',
+               'body': INVOKE_DESC,
+               })
+
+    invoke_s = fmt(invoke_v, with_roll=True)
+    fs.append({
+        'title': f'Amaranthine Rolls',
+        'body': invoke_s,
+        })
+    data['portent'] = invoke_v
+
+    ch.set_cvar(CVAR_INVOKE, dump_json(data))
+    return fs
+
+def info(ch):
+    fs = []
+    data = load_json(ch.get_cvar(CVAR_INVOKE, '{}'))
+
+    invoke_v = data.get('portent', [])
+    invoke_s = fmt(invoke_v)
+
+    fs.append({
+        'title': 'Current Amaranthine Dice',
+        'body': invoke_s,
+        })
+
+    return fs
+
+data = load_json(ch.get_cvar(CVAR_INVOKE, '{}')) or {}
+invoke_v = data.get('portent', []) or []
+
+help_emb = {
+    'title':'Manage Your Invoke the Amaranthine Dice!',
+    'desc':(f'**__Usage__**:\n'
+            f'* `!{al_name} (list)`\n'
+            f'  * If you have rolled Invoke the Amaranthine dice before, calling `!{al_name}` without arguments will '
+            f'list your current Invoke the Amaranthine dice, and mark which ones have been used. The `list` argument '
+            f'is optional.\n'
+            f'* `!{al_name} roll`\n'
+            f'  * Roll new set of Invoke the Amaranthine dice\n'
+            f'* `!{al_name} assign #n (attack|check|save)`\n'
+            f'  * Assign Amaranthine die number `#n` as attack, check, or saving throw (also accepts just "a", "c", "s")\n'
+            f'* `!{al_name} use #n`\n'
+            f'  * Mark Amaranthine die number `#n` as used. You must assign the type first before using.\n'
+            f'* `!{al_name} undo #n`\n'
+            f'  * Mark Amaranthine die number `#n` as unused'
+            ),
+    }
+
+if (not args and len(invoke_v) == 0) or (args and args[0] in ['?', 'help']):
+    return jh.embed(**help_emb)
+
+if not args or args[0] == 'list':
+    return jh.embed(
+        title=f'{ch.name} checks their Invoke the Amaranthine dice!',
+        fields=info(ch),
+        )
+if args[0] == 'roll':
+    return jh.embed(
+        title=f'{ch.name} rolls for their dice!',
+        fields=apply(ch),
+        )
+if args[0] == 'assign':
+    if len(args) < 2:
+        help_emb['fields'] = [
+                {'title':'Error',
+                 'body':f'`!{al_name} assign #n (attack|check|save)` needs a number'}]
+        return jh.embed(**help_emb)
+    try:
+        n = int(args[1])
+    except:
+        help_emb['fields'] = [
+                {'title':'Error',
+                 'body':f'`!{al_name} assign #n (attack|check|save)` needs a number'}]
+        return jh.embed(**help_emb)
+    if n > len(invoke_v) or n <= 0:
+        help_emb['fields'] = [{'title':'Error', 'body':f'You have {len(invoke_v)} dice, select 1-{len(invoke_v)}'}]
+        return jh.embed(**help_emb)
+    if len(args) < 3 or not args[2]:
+        help_emb['fields'] = [
+                {'title':'Error',
+                 'body':f'`!{al_name} assign #n (attack|check|save)` needs the type'}]
+        return jh.embed(**help_emb)
+    kind = {'a':'attack', 'c':'check', 's':'save'}.get(args[2][0].lower(), None)
+    if not kind:
+        help_emb['fields'] = [
+                {'title':'Error',
+                 'body':f'The type needs to be one of **__a__**ttack, **__c__**heck, or **__s__**ave'}]
+        return jh.embed(**help_emb)
+    r = invoke_v[n-1][0]
+    invoke_v[n-1][2] = kind
+    data['portent'] = invoke_v
+    ch.set_cvar(CVAR_INVOKE, dump_json(data))
+    return jh.embed(
+        title=f'{ch.name} assigned one of their Amaranthine dice!',
+        desc=f'{ch.name} assigned Amaranthine die #{n} (**{r}**) to "{kind}".',
+        fields=[{'title':'Current  Dice', 'body':fmt(invoke_v)}],
+        )
+if args[0] == 'use':
+    if len(args) < 2:
+        help_emb['fields'] = [{'title':'Error', 'body':f'`!{al_name} use #n` needs a number'}]
+        return jh.embed(**help_emb)
+    try:
+        n = int(args[1])
+    except:
+        help_emb['fields'] = [{'title':'Error', 'body':f'`!{al_name} use #n` needs a number'}]
+        return jh.embed(**help_emb)
+    if n > len(invoke_v) or n <= 0:
+        help_emb['fields'] = [{'title':'Error', 'body':f'You have {len(invoke_v)} dice, select 1-{len(invoke_v)}'}]
+        return jh.embed(**help_emb)
+    if not invoke_v[n-1][1]:
+        help_emb['fields'] = [{'title':'Error', 'body':f'Die #{n} (**{invoke_v[n-1][0]}**) has already been used'}]
+        return jh.embed(**help_emb)
+    if invoke_v[n-1][2] == '*unassigned*':
+        help_emb['fields'] = [{'title':'Error', 'body':f'Die #{n} (**{invoke_v[n-1][0]}**) has not been assigned a type'}]
+        return jh.embed(**help_emb)
+    invoke_v[n-1][1] = False
+    r = invoke_v[n-1][0]
+    data['portent'] = invoke_v
+    ch.set_cvar(CVAR_INVOKE, dump_json(data))
+    return jh.embed(
+        title=f'{ch.name} used one of their Amaranthine dice!',
+        desc=f'{ch.name} has foretold the result of a roll.\nUsed Amaranthine die #{n} (**{r}**).',
+        fields=[{'title':'Current Amaranthine Dice', 'body':fmt(invoke_v)}],
+        )
+if args[0] == 'undo':
+    if len(args) < 2:
+        help_emb['fields'] = [{'title':'Error', 'body':f'`!{al_name} undo #n` needs a number'}]
+        return jh.embed(**help_emb)
+    try:
+        n = int(args[1])
+    except:
+        help_emb['fields'] = [{'title':'Error', 'body':f'`!{al_name} undo #n` needs a number'}]
+        return jh.embed(**help_emb)
+    if n > len(invoke_v) or n <= 0:
+        help_emb['fields'] = [{'title':'Error', 'body':f'You have {len(invoke_v)} dice, select 1-{len(invoke_v)}'}]
+        return jh.embed(**help_emb)
+    if invoke_v[n-1][1]:
+        help_emb['fields'] = [{'title':'Error', 'body':f'Die #{n} (**{invoke_v[n-1][0]}**) has not been used'}]
+        return jh.embed(**help_emb)
+    invoke_v[n-1][1] = True
+    r = invoke_v[n-1][0]
+    data['portent'] = invoke_v
+    ch.set_cvar(CVAR_INVOKE, dump_json(data))
+    return jh.embed(
+        title=f'{ch.name} made a mistake in their divination!',
+        desc=(f'{ch.name} made a mistake, one of their foretelling was not supposed to be for this event.\n'
+              f'Amaranthine die #{n} (**{r}**) has been marked as unused.'),
+        fields=[{'title':'Current Amaranthine Dice', 'body':fmt(invoke_v)}],
+        )
+help_emb['fields'] = [{'title':'Error', 'body':f'Unknown argument: {args[0]}'}]
+return jh.embed(**help_emb)
+</drac2>
+

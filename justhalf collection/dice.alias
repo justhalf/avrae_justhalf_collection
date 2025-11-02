@@ -70,6 +70,7 @@ if k_args['-phrase']:
     fs.append({'title':'Comment', 'body':'\n'.join(k_args['-phrase'])})
 
 dice = ' '.join(l_args[1:])
+fs.insert(0, {'title':'Dice Expression', 'body':dice})
 
 if not dice:
     errs.append(f'Please specify a dice expression')
@@ -80,7 +81,7 @@ if subc == 'avg':
     avg = dicelib.avg(dice)
     return jh.embed(
         title='Dice Average',
-        desc=(f'Dice expression: {dice}\nAverage: {avg:.1f}'),
+        desc=(f'Average: {avg:.1f}'),
         fields=fs,
         f_thumb=None,
         )
@@ -94,7 +95,7 @@ elif subc == 'prob':
     prob = dicelib.prob(f'{dice}-({dc})', dc=0)
     return jh.embed(
         title='Dice Probability',
-        desc=(f'Dice expression: {dice}\nDC: {dc}\nChance of success: {prob*100:.2f}%'),
+        desc=(f'DC: {dc}\nChance of success: {prob*100:.2f}%'),
         fields=fs,
         f_thumb=None,
         )
@@ -163,8 +164,7 @@ elif subc == 'stats':
     dist_s = '\n'.join(dist_s)
     return jh.embed(
         title='Dice Statistics',
-        desc=(f'Dice expression: {dice}\n'
-              f'Average: {avg:.1f}\n'
+        desc=(f'Average: {avg:.1f}\n'
               f'Minimum: {minval:g}\n'
               f'Maximum: {maxval:g}\n'
               f'Mode: {mode:g}\n'

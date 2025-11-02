@@ -8,34 +8,33 @@ jh.setup(
         footer=footer,
         )
 using(bl=jh.LIB['baglib'])
+dtypes = ['acid', 'cold', 'fire', 'poison', 'lightning', 'thunder', 'force', 'psychic', 'necrotic']
 
 ch = character()
 co = combat()
 type_cvar = 'oilTypeDefault'
 
 args = &ARGS&
-if args and not args[0].startswith('-'):
-    el = args[0].lower().strip()
-else:
-    el = ''
 
-args = argparse(args)
-if args.get('h') or el.lower() in ['', '?', 'help']:
+if not args or args[0].lower() in ['?', 'help']:
     return jh.embed(
         title='Blade Oil Alias Manual',
         desc=(f'Applies Blade Oil with the specified element, with optional bag management.\n\n'
               f'**Usage**:\n'
-              f'`!oil <element> [-i] [-type {{ammo,blade}}] [-bag <bagName>]* [-t <target>]*`\n'
+              f'`!oil <element> [-type {{ammo,blade}}] [-bag <bagName>]* [-t <target>]* [nobag]`\n'
               f'* The `element` needs to be the full name of the element ("cold", "necrotic", "radiant", etc.)\n'
               f'* `-bag`: Bag names can be provided to search only those bags.\n'
               f'* `-type`: specifies whether it\'s applied to ammo or blade. If it\'s ammo, a custom counter '
               f'will be created to track the 6 ammunitions coated with this blade oil application. '
-              f'Defaults to `ammo`.\n'
+              f'Defaults to `blade`.\n'
               f'  * If applied to another combatant via `-t`, only `blade` is available.\n'
               f'  * Set the default type with `!cvar {type_cvar} ammo|blade`\n'
-              f'* `-i`: will ignore bag management\n'
+              f'* `nobag`: will ignore bag management\n'
               f'* `-t <target>`: (optional) applies the Blade Oil effect to the specified target(s).\n\n'
-              f'**Bag management**\n'
+              f'`!oil cc <element>`\n'
+              f'* Creates the necessary cc for the specified element, for ammo use case\n'
+              f'* If the cc already exists, do nothing\n\n'
+              f'**Bag management (not enforced)**\n'
               f'This alias will look for items named "Blade Oil (element)" or "element Blade Oil" in all '
               f'your bags. If you specify bag names with `-bag`, it will only search those bags.\n\n'
               f'**In Combat**\n'
@@ -45,10 +44,52 @@ if args.get('h') or el.lower() in ['', '?', 'help']:
               f'If you have multiple blade oil effects, when using the snippet you can also add `oilRadiant` or '
               f'`oilFire` immediately after `oil` to choose which element you are using with that attack, for example:\n'
               f'`!a longsword -t ZO1 oil oilCold`"'),
-        f_thumb=False,
         )
 
+if args[0] == 'cc':
+    if len(args) == 1:
+        return jh.embed(
+            title='Element type missing! :x:',
+            desc=(f'You ran `!oil cc` without specifying the element type\n'
+                  f'__**Usage**__:\n'
+                  f'`!oil cc <element>`\n'
+                  f'* Creates the necessary cc for the specified element, for ammo use case\n'
+                  f'* If the cc already exists, do nothing\n\n'
+                  f'To delete a CC, simply run:\n'
+                  f'`!cc delete <ccname>`'),
+            )
+    el = args[1].lower().strip()
+    item_name = f'Blade Oil ({el})'
+    counter = ch.create_cc(item_name, 0, initial_value=6,
+                             desc=f'{item_name} applied to ammo. Lasts 1 minute.')
+    return jh.embed(
+        title=f'Custom counter created! :white_check_mark:',
+        desc=f'The custom counter "{item_name}" was created.',
+        fields=[{'title':counter.name,
+                 'body':counter.full_str()}],
+        )
+
+p_args = argparse(args)
+k_args, l_args = jh.take_args(args, {'-type':True, '-bag':True, '-t':True, 'nobag':False})
+
 # Canonical blade oil name, also used for CC
+if not l_args:
+    return jh.embed(
+        title=f'Failed to apply Blade Oil! :x:',
+        desc=(f'No damage element supplied.\n\n'
+              f'__**Usage**__:\n'
+              f'`!oil <element> [-type {{ammo,blade}}] [-bag <bagName>]* [-t <target>]* [nobag]`\n'
+              f'* The `element` needs to be the full name of the element ("cold", "necrotic", "radiant", etc.)\n'
+              f'* `-bag`: Bag names can be provided to search only those bags.\n'
+              f'* `-type`: specifies whether it\'s applied to ammo or blade. If it\'s ammo, a custom counter '
+              f'will be created to track the 6 ammunitions coated with this blade oil application. '
+              f'Defaults to `blade`.\n'
+              f'  * If applied to another combatant via `-t`, only `blade` is available.\n'
+              f'  * Set the default type with `!cvar {type_cvar} ammo|blade`\n'
+              f'* `nobag`: will ignore bag management\n'
+              f'* `-t <target>`: (optional) applies the Blade Oil effect to the specified target(s).'),
+        )
+el = l_args[0].lower().strip()
 item_name = f'Blade Oil ({el})'
 
 # Defines the output embed `out`
@@ -57,9 +98,9 @@ fs = []
 out['fields'] = fs
 warns = []
 
-ignore_bag = args.get('i', False)
+ignore_bag = bool(k_args['nobag'])
 # Targets
-ts = args.get('t', [])
+ts = k_args['-t']
 uniq, mult, none = jh.resolve_targets(ts)
 if mult:
     mult_s = '\n* '.join(['']+[f'{t}: {", ".join(comb.name for comb in combs)}' for t, combs in mult])
@@ -79,30 +120,14 @@ if ts and (mult or none):
                    f'Simply run:\n'
                    f'`!{al_name} <element>`')
     fs.extend(warns)
-    return jh.embed(**out, f_thumb=False)
+    return jh.embed(**out)
 
-if ts and (len(uniq) > 1 or uniq[0][1][0].name != co.me.name):
+if ts and (len(uniq) > 1 or not co.me or uniq[0][1][0].name != co.me.name):
     has_target = True
 else:
     has_target = False
 
-apply_type = args.last('type', 'ammo').lower()
-type_from_cvar = True
-if apply_type is not None:
-    type_from_cvar = False
-else:
-    apply_type = ch.get_cvar(type_cvar, None)
-if apply_type not in ['ammo', 'blade']:
-    extra_s = f' (from `!cvar {type_cvar}`)' if type_from_cvar else ''
-    fs.append({'title':'Invalid application type :warning:',
-               'body':(f'`{apply_type}`{extra_s} is not a valid application type. '
-                       f'Choose either `ammo` or `blade`. Defaulting to `ammo` now.\n'
-                       f'To use as non-ammo, simply remove the custom counter by running:\n'
-                       f'`!cc delete "{item_name}"`')
-               })
-    apply_type = 'ammo'
-
-bag_names = args.get('bag',[])
+bag_names = k_args['-bag']
 bags = bl.load_bags()
 has_names = True
 cur_bags = []
@@ -159,34 +184,91 @@ if not ignore_bag:
         else:
             if has_names:
                 missed_bags.append(bag[0])
+    if not found_item and el not in dtypes:
+        return jh.embed(
+            title=f'Invalid damage type! :x:',
+            desc=(f'The provided damage type "{el}" is not a standard damage type, and neither can a corresponding '
+                  f'blade oil item be found in your bag. If you really intended to use this custom damage type, you '
+                  f'can add `nobag` to use this damage type.'),
+        )
 
-if ignore_bag or found_item:
-    if not has_target:
-        out['title'] = f'{jh.ch_name()} applies {item_name} for themselves!'
-    elif len(uniq) == 1:
-        out['title'] = f'{uniq[0][1][0].name} applies {item_name}!'
-    else:
-        out['title'] = f'Multiple targets apply {item_name}!'
-    out['desc'] = (f'These fine oils are made by skilled alchemists. '
-                   f'Some are said to be made from the spit of dragons, others from the blood of angels. '
-                   f'A given flask of blade oil is associated with one damage type, based on the materials used. '
-                   f'You can apply blade oil to a melee weapon or 6 pieces of ammunition as an action.\n\n'
-                   f'Every attack made with that weapon or ammunition before the oil dries deals an extra 1d4 '
-                   f'damage of that specific oil\'s damage type.')
-    if not ignore_bag:
-        for bag in bags:
-            if bag[0] == found_bag[0]:
-                bag[1] = found_bag[1]
-        bl.save_bags(bags)
-        fs.append({'title':'Bag Management :white_check_mark:',
-                   'body':f'Removed "{found_item}" x1 from **{found_bag[0]}**',
+if not has_target:
+    if not co:
+        return jh.embed(
+            title=f'Failed to apply Blade Oil! :x:',
+            desc=(f'This channel is not in combat!'),
+        )
+    if not co.me:
+        return jh.embed(
+            title=f'Failed to apply Blade Oil! :x:',
+            desc=(f'{jh.ch_name()} is not in combat!'),
+        )
+    out['title'] = f'{jh.ch_name()} applies {item_name} for themselves!'
+elif len(uniq) == 1:
+    out['title'] = f'{jh.ch_name()} applies {item_name} for {uniq[0][1][0].name}!'
+else:
+    out['title'] = f'{jh.ch_name()} applies {item_name} for multiple targets!'
+out['desc'] = (f'These fine oils are made by skilled alchemists. '
+               f'Some are said to be made from the spit of dragons, others from the blood of angels. '
+               f'A given flask of blade oil is associated with one damage type, based on the materials used. '
+               f'You can apply blade oil to a melee weapon or 6 pieces of ammunition as an action.\n\n'
+               f'Every attack made with that weapon or ammunition before the oil dries deals an extra 1d4 '
+               f'damage of that specific oil\'s damage type.')
+if found_item:
+    for bag in bags:
+        if bag[0] == found_bag[0]:
+            bag[1] = found_bag[1]
+            break
+    bl.save_bags(bags)
+    fs.append({'title':'Bag Management :white_check_mark:',
+               'body':f'Removed "{found_item}" x1 from **{found_bag[0]}**',
+               })
+elif ignore_bag:
+    fs.append({'title':'Bag Management :information_source:',
+               'body':f'`nobag` supplied, bag management ignored.',
+               })
+else:
+    fs.append({'title':'Bag Management :information_source:',
+               'body':(f'No items named "{el.title()} Blade Oil" or "Blade Oil ({el.lower()})" found in '
+                       f'the specified bags, bag management ignored.'),
+               },
+             )
+
+apply_type = (k_args['-type']+[None])[0]
+type_from_cvar = True
+if apply_type is not None:
+    type_from_cvar = False
+else:
+    apply_type = ch.get_cvar(type_cvar, None)
+    if apply_type is not None:
+        type_from_cvar = True
+if type_from_cvar:
+    application_source = f'`!cvar {type_cvar}`'
+else:
+    application_source = f'`-type {apply_type}`'
+if apply_type is None:
+    fs.append({'title':'Using default application type :information_source:',
+               'body':(f'Application type defaults to `blade`.\n'
+                       f'To use as ammo, create the custom counter by running:\n'
+                       f'`!oil cc {el}`'),
+               })
+elif apply_type not in ['ammo', 'blade']:
+    extra_s = f' (from {application_source})' if type_from_cvar else ''
+    fs.append({'title':'Invalid application type :warning:',
+               'body':(f'`{apply_type}`{extra_s} is not a valid application type. '
+                       f'Choose either `ammo` or `blade`. Defaulting to `blade` now.\n'
+                       f'To instead use as ammo for this application, create the custom counter by running:\n'
+                       f'`!oil cc {el}`'),
+               })
+    apply_type = 'blade'
+elif apply_type == 'ammo':
+    # Handle ammo cc creation
+    if has_target:
+        fs.append({'title':'Application type changed :information_source:',
+                   'body':(f'Blade Oil applied not to self, so `ammo` application type is not supported. '
+                           f'Defaulting to `blade`.'),
                    })
     else:
-        fs.append({'title':'Bag Management :information_source:',
-                   'body':f'`-i` supplied, bag management ignored.',
-                   })
-
-    if not has_target and apply_type == 'ammo':
         cc_op_title = ''
         if ch.cc_exists(item_name):
             counter = ch.cc(item_name)
@@ -199,46 +281,42 @@ if ignore_bag or found_item:
         fs.append({'title':cc_op_title,
                    'body':(f'{counter.desc}\n{counter.full_str()}\n'
                            f'__**Note**__: If you intended this to not be ammo, you can delete this CC with '
-                           f'`!cc delete "{counter.name}"`\n'
-                           f'For future runs, to default to `blade`, run `!cvar oilDefaultType blade`'),
+                           f'`!cc delete "{counter.name}"`\n'),
                    })
-
-    if not has_target:
-        if co and co.me:
-            co.me.add_effect(item_name, duration=10)
-            fs.append({'title':'Effect :placard:',
-                       'body':f'Added effect {item_name} to {co.me.name} [1 minute]',
-                       })
-    else:
-        eff = []
-        for t, [comb] in uniq:
-            comb.add_effect(item_name, duration=10)
-            eff.append(f'Added effect {item_name} to {comb.name} [1 minute]')
-        eff_s = '\n'.join(eff)
-        fs.append({'title':'Effect :placard:',
-                   'body':eff_s})
-
-    fs.append({'title':'Snippet: `oil` :information_source:',
-               'body':(f'You can now use the `oil` snippet to apply the extra 1d4 damage.\n'
-                       f'The damage type will be automatically read from the effect, as long as the effect is named '
-                       f'"Blade Oil (<damage type here>)"\n\n'
-                       f'If you have multiple blade oil effects, when using the snippet you can also add `oilRadiant` '
-                       f'or `oilFire` immediately after `oil` to choose which element you are using with that attack, '
-                       f'for example:\n'
-                       f'`!a longsword -t ZO1 oil oilCold`'),
-               })
 else:
-    out['title'] = f'{jh.ch_name()} does not have any {item_name} to apply!'
-    out['desc'] = f'Specify `-i` to ignore bag management\nRun `!oil help` for more info'
-    fs.append({'title':'Error :x:',
-               'body':(f'No items named "{el.title()} Blade Oil" or "Blade Oil ({el.lower()})" found in '
-                       f'the specified bags.'),
+    # Blade application
+    fs.append({'title':'Application type: `blade` :information_source:',
+               'body':(f'Application type obtained from {application_source}\n'
+                       f'__**Note**__: To instead use as ammo for this application, '
+                       f'create the custom counter by running:\n'
+                       f'`!oil cc {el}`'),
                })
-    if has_names:
-        fs.append({'title':'Error :x:',
-                   'body':(f'The bag{"s" if len(missed_bags)>1 else ""} {", ".join(missed_bags)} '
-                           f'do{"es" if len(missed_bags)==1 else ""} not contain {item_name}'),
-                   })
 
-return jh.embed(**out, f_thumb=False)
+# Handles ieffect attach
+if not has_target:
+    if co and co.me:
+        co.me.add_effect(item_name, duration=10)
+        fs.append({'title':'Effect :placard:',
+                   'body':f'Added effect {item_name} to {co.me.name} [1 minute]',
+                   })
+else:
+    eff = []
+    for t, [comb] in uniq:
+        comb.add_effect(item_name, duration=10)
+        eff.append(f'Added effect {item_name} to {comb.name} [1 minute]')
+    eff_s = '\n'.join(eff)
+    fs.append({'title':'Effect :placard:',
+               'body':eff_s})
+
+fs.append({'title':'Snippet: `oil` :information_source:',
+           'body':(f'You can now use the `oil` snippet to apply the extra 1d4 damage.\n'
+                   f'The damage type will be automatically read from the effect, as long as the effect is named '
+                   f'"Blade Oil (<damage type here>)"\n\n'
+                   f'If you have multiple blade oil effects, when using the snippet you can also add `oilRadiant` '
+                   f'or `oilFire` immediately after `oil` to choose which element you are using with that attack, '
+                   f'for example:\n'
+                   f'`!a longsword -t ZO1 oil oilCold`'),
+           })
+
+return jh.embed(**out)
 </drac2>

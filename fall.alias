@@ -7,7 +7,6 @@ jh.setup(
         al_name=al_name,
         footer=footer,
         )
-using(maplib=jh.LIB['maplib'])
 
 ch = character()
 
@@ -17,20 +16,24 @@ args = &ARGS&
 title = 'Manage your fall!'
 desc=(f'Manage fall damage and height on OTFBM map.\n\n'
       f'__Usage__:\n'
-      f'`!{al_name} <fall_distance> -t <target> (-t <target>)* (-nomap)`\n'
+      f'`!{al_name} <fall_distance> -t <target> (-t <target>)* (nomap) (noprone)`\n'
       f'* Make the targetted combatants take fall damage according to the specified fall distance.\n'
       f'* If fall distance is not specified, the fall distance will be based on the __height__ of each '
       f'combatant according to the OTFBM map.\n'
       f'* Each combatant height on the map will be reduced by the fall distance.\n'
-      f'* If `-nomap` is provided, the combatants\' height on the map will not be changed.\n\n'
-      f'`!{al_name} -t <target>|<fall_distance> (-t <target>|<fall_distance>)* (-nomap)`\n'
+      f'* If `nomap` is provided, the combatants\' height on the map will not be changed.\n'
+      f'* If `noprone` is provided (can also be per target), no Prone effect will be applied '
+      f'to the affected targets. Target-specific argument will take priority.\n\n'
+      f'`!{al_name} -t "<target>|<fall_distance> <prone or noprone>" (-t "<target>|<fall_distance> <prone or noprone>")* '
+      f'(nomap)`\n'
       f'* You can also specify different fall distance for each target.\n\n'
       f'__Examples__:\n'
       f'`!{al_name} 30 -t 1Sliver -t 2Harpy`\n'
       f'* The standard usage. 1Sliver and 2Harpy will each take 3d6 bludgeoning damage (rolled separately).\n'
-      f'`!{al_name} 30 -t Sacross -t Trellum|60 -t Gar -nomap`\n'
+      f'`!{al_name} 30 -t Sacross -t "Trellum|60 prone" -t Gar nomap noprone`\n'
       f'* Sacross and Gar will take 3d6 damage, Trellum will take 6d6 damage. '
-      f'Their heights on the map are unchanged, since we provide `-nomap`.')
+      f'Their heights on the map are unchanged, since we provide `nomap`. Only Trellum will be prone, since we '
+      f'provide general `noprone` argument, and only Trellum override that with `prone`.')
 
 if not args or args[0] in ['?', 'help']:
     return jh.embed(
@@ -49,6 +52,7 @@ args = argparse(args)
 
 targets = args.get('t', []) or []
 use_map = not bool(args.last('nomap', False))
+apply_prone = not bool(args.last('noprone', False))
 
 if not targets:
     return jh.embed(
@@ -84,10 +88,10 @@ if dist is None:
     desc_l.append((f'No generic falling distance specified, will use the individual falling distance from '
                    f'`-t <target>|<distance>` of each target.'))
     if use_map:
-        desc_l.append((f'No `-nomap` specified, targets without a specified individual falling distance will use '
+        desc_l.append((f'No `nomap` specified, targets without a specified individual falling distance will use '
                        f'the targets\' heights on the map as the falling distance.'))
     else:
-        desc_l.append((f'Map not used (`-nomap`), targets without a specified individual falling distance will use '
+        desc_l.append((f'Map not used (`nomap`), targets without a specified individual falling distance will use '
                        f'0 as the falling distance.'))
 else:
     desc_l.append(f'Falling distance: {dist} ft.')
@@ -95,7 +99,7 @@ else:
 if use_map:
     desc_l.append(f'Will update heights on map.')
 else:
-    desc_l.append(f'Will not update heights on map. (`-nomap`)')
+    desc_l.append(f'Will not update heights on map. (`nomap`)')
 
 warns_l = []
 fs = []
@@ -119,6 +123,14 @@ for t_arg, [target] in uniq:
         if height is None:
             map_params.append(['Height', '0'])
             height = 0
+    t_apply_prone = apply_prone
+    if arg:
+        arg = arg.lower()
+        if 'prone' in arg:
+            t_apply_prone = 'noprone' not in arg
+        arg = ' '.join([a for a in arg.split(' ') if 'prone' not in a])
+        if not arg:
+            arg = None
     try:
         c_dist = int(arg)
         use_default = False
@@ -139,7 +151,7 @@ for t_arg, [target] in uniq:
         else:
             dist_s = f'Falling distance (default): __{c_dist} ft.__'
         if arg is not None:
-            warns_l.append(f'In "{t_arg}", "{arg}" is not a valid distance')
+            warns_l.append(f'In "{t_arg}", "{arg}" is not a valid distance (or maybe typo in typing "prone"?)')
     if use_map:
         for param in map_params:
             if len(param) != 2:
@@ -164,7 +176,7 @@ for t_arg, [target] in uniq:
     dmg_s = f'**Damage**: {dmg_r} [falling bludgeoning]'
     hp_str = target.modify_hp(-dmg_r.total)
     hp_str = f'{target.name} {hp_str} ({-dmg_r.total})'
-    if dmg_r.total != 0:
+    if dmg_r.total != 0 and t_apply_prone:
         # Took damage from fall, be prone
         prone_ef = target.add_effect('Prone', passive_effects={'attack_advantage':-1}, buttons=[{
             'automation':[{
@@ -179,6 +191,8 @@ for t_arg, [target] in uniq:
             )
         prone_s = str(prone_ef).split('\n')[0]
         prone_s = f'\n**Effect**: {prone_s}'
+    elif dmg_r.total != 0:
+        prone_s = '\nNo prone effect applied due to `noprone`'
     else:
         prone_s = ''
     fs.append({'title':hp_str, 'body':f'{dist_s}\n{dmg_s}{prone_s}{map_s}'})

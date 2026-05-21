@@ -850,7 +850,7 @@ if not ignore_bag:
             if found:
                 the_bag[1][item] -= p_count
                 if the_bag[1][item] == 0:
-                    del the_bag[1][item]
+                    the_bag[1].pop(item)
                 break
             else:
                 bag_err = True

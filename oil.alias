@@ -8,7 +8,7 @@ jh.setup(
         footer=footer,
         )
 using(bl=jh.LIB['baglib'])
-dtypes = ['acid', 'cold', 'fire', 'poison', 'lightning', 'thunder', 'force', 'psychic', 'necrotic']
+dtypes = ['acid', 'cold', 'fire', 'poison', 'lightning', 'thunder', 'force', 'psychic', 'radiant', 'necrotic']
 
 ch = character()
 co = combat()

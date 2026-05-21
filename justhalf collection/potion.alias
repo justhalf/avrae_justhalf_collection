@@ -50,6 +50,8 @@ al_desc = (f'__**Usage**__:\n'
            f'`!{al_name} setup <potion name> (same args as using it)`\n'
            f'* Sets up a default arguments for a specific potion. Put an empty string "" to setup for all potions.\n'
            f'* This setting is per-character\n\n'
+           f'`!{al_name} template`\n'
+           f'* Shows the instructions on how to make your own homebrew potions.\n\n'
            f'To default to not using bag management, you can do `!{al_name} setup "" nobag` (and you can undo it by '
            f'doing `!{al_name} setup ""`).\n\n'
            f'__Example__\n'
@@ -63,7 +65,8 @@ if not args or args[0] in ['?', 'help']:
         title=f'{ch.name} wants to drink a potion!',
         desc=al_desc,
         )
-
+if args[0] == 'template':
+    return jh.embed(desc=get_gvar('32431f7e-684a-4e05-b0ad-efa6ab0fa938'), f_thumb=False)
 stat_map = {
         'str': 'strength',
         'dex': 'dexterity',
@@ -641,7 +644,7 @@ for t_arg, [target] in t_uniq:
                     existing_ef = target.get_effect(ef_name)
                 else:
                     existing_ef = None
-                if existing_ef and (existing_dur := existing_ef.duration):
+                if not dur and existing_ef and (existing_dur := existing_ef.duration):
                     ef_dur_roll = vroll(f'({ef_dur} [new],{existing_dur} [existing])kh1')
                 else:
                     ef_dur_roll = vroll(ef_dur)
@@ -664,7 +667,7 @@ for t_arg, [target] in t_uniq:
                     existing_ef = target.get_effect(ef_name)
                 else:
                     existing_ef = None
-                if existing_ef and (existing_dur := existing_ef.duration):
+                if not dur and existing_ef and (existing_dur := existing_ef.duration):
                     ef_dur_roll = vroll(f'({ef_dur},{existing_dur})kh1')
                     ef_dur_s = str(ef_dur_roll)
                     ef_dur = ef_dur_roll.total
@@ -828,15 +831,38 @@ if not ignore_bag:
     simple_name = p_name.replace('Potion of ','')
     candidates = [p_name, f'{simple_name} potion', simple_name]
     if simple_name == 'healing':
-        candidates = [f'{p_name} (common)', f'{p_name} common', 'potion of common healing', p_name, f'{simple_name} potion']
+        candidates = [f'{p_name} (common)', f'{p_name} common', 'Potion of Common Healing', p_name, f'{simple_name} Potion']
+    if p_name == 'Keoghtom\'s Ointment':
+        candidates.append('Restorative Ointment')
+    if choice:
+        candidates = [(name, choice) for name in candidates] + candidates
     for item in candidates:
-        try:
-            the_bag, [item], bag_err = bl.modify_item(found_bags, item, -p_count)
-            if not bag_err:
+        if typeof(item) == 'tuple':
+            found = False
+            for the_bag in found_bags:
+                for the_item, the_count in the_bag[1].items():
+                    if all(word.lower() in the_item.lower() for word in item) and the_count >= p_count:
+                        item = the_item
+                        bag_err = None
+                        found = True
+                        break
+                if found: break
+            if found:
+                the_bag[1][item] -= p_count
+                if the_bag[1][item] == 0:
+                    del the_bag[1][item]
                 break
-        except:
-            bag_err = True
-            item = p_name
+            else:
+                bag_err = True
+                item = p_name
+        else:
+            try:
+                the_bag, [item], bag_err = bl.modify_item(found_bags, item, -p_count)
+                if not bag_err:
+                    break
+            except:
+                bag_err = True
+                item = p_name
     if not bag_err:
         if item in the_bag[1]:
             count = the_bag[1][item]
@@ -845,6 +871,7 @@ if not ignore_bag:
         bl.save_bags(bags)
         results.append(f'Updated bag {the_bag[0]}: {count}x {item} (-{p_count})')
     else:
+        # Handles the case where we need to spend more than one potions, but not enough in bag
         try:
             the_bag, *_ = bl.modify_item(found_bags, item, 0)
             count = the_bag[1][item]

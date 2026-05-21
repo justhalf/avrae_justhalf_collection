@@ -1,6 +1,6 @@
 [
     {
-        "name": "Antitoxin (vial)",
+        "name": "Antitoxin",
         "description": "A creature that drinks this vial of liquid gains advantage on saving throws against poison for 1 hour. It confers no benefit to undead or constructs.",
         "help": "The advantage against poison needs to be done manually. Either by rerolling, or passing `sadv` when targetting this creature for poison effects.",
         "automation": [
@@ -44,6 +44,7 @@
     {
         "name": "Potion of Animal Friendship",
         "description": "When you drink this potion, you can cast the **__animal friendship__** spell (save DC 13) for 1 hour at will.\n\nAgitating this muddy liquid brings little bits into view: a fish scale, a hummingbird tongue, a cat claw, or a squirrel hair.",
+        "help": "You now have a new action \"Animal Friendship\" which you can target to a beast you can see within range (30 feet). Use `-i` to bypass the creature type requirement.",
         "automation": "b7addfbe-82e0-4133-8bda-7317df620485",
         "source": "BR"
     },
@@ -206,8 +207,8 @@
         "source": "BR"
     },
     {
-        "name": "Potion of Frost/Stone Giant Strength",
-        "description": "When you drink this potion, your Strength score changes to 23 for 1 hour. The potion has no effect on you if your Strength is equal to or greater than that score.\n\nThis potion's transparent liquid has floating in it a sliver of fingernail from a frost/stone giant.",
+        "name": "Potion of Frost Giant Strength",
+        "description": "When you drink this potion, your Strength score changes to 23 for 1 hour. The potion has no effect on you if your Strength is equal to or greater than that score.\n\nThis potion's transparent liquid has floating in it a sliver of fingernail from a frost giant.",
         "help": "Avrae automations and aliases cannot change a combatant's ability scores, so this potion effect is just a reminder for the duration. It is recommended to update your Strength score on your character sheet and then update it to Avrae. But, if you really prefer, you can use `-choice damage` to apply bonuses to attack and damage rolls (this will affect **__all__** damage rolls, not just Strength, and this includes healing rolls too)",
         "automation": [
             {
@@ -220,7 +221,7 @@
                         "effects": [
                             {
                                 "type": "ieffect2",
-                                "name": "Frost/Stone Giant Strength (Potion)",
+                                "name": "Frost Giant Strength (Potion)",
                                 "duration": "600",
                                 "desc": "Your strength becomes 23 if it is lower without this effect."
                             }
@@ -244,7 +245,67 @@
                         "effects": [
                             {
                                 "type": "ieffect2",
-                                "name": "Frost/Stone Giant Strength (Potion)",
+                                "name": "Frost Giant Strength (Potion)",
+                                "duration": "600",
+                                "desc": "Your strength becomes 23 if it is lower without this effect.",
+                                "effects": {
+                                    "to_hit_bonus": "{SB(23)}",
+                                    "damage_bonus": "{SB(23)}"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "text": "Automatic attack and damage rolls are applied due to `-choice damage`. Please make sure to adjust the rolls in cases where the bonuses should not apply.",
+                        "title": "Avrae Tips :bulb:"
+                    }
+                ],
+                "onFalse": []
+            }
+        ],
+        "source": "BR"
+    },
+    {
+        "name": "Potion of Stone Giant Strength",
+        "description": "When you drink this potion, your Strength score changes to 23 for 1 hour. The potion has no effect on you if your Strength is equal to or greater than that score.\n\nThis potion's transparent liquid has floating in it a sliver of fingernail from a stone giant.",
+        "help": "Avrae automations and aliases cannot change a combatant's ability scores, so this potion effect is just a reminder for the duration. It is recommended to update your Strength score on your character sheet and then update it to Avrae. But, if you really prefer, you can use `-choice damage` to apply bonuses to attack and damage rolls (this will affect **__all__** damage rolls, not just Strength, and this includes healing rolls too)",
+        "automation": [
+            {
+                "type": "condition",
+                "condition": "choice in \"\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Stone Giant Strength (Potion)",
+                                "duration": "600",
+                                "desc": "Your strength becomes 23 if it is lower without this effect."
+                            }
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "text": "Note that this effect does nothing, and only serves as a reminder of its duration. It is recommended to temporarily update your character sheet to set the Strength score to 23 to apply the to hit and damage bonus properly. If you prefer, you can also rerun this alias with `-choice damage` to apply the bonuses to attack and damage rolls (this will affect **__all__** damage rolls, not just Strength, and this includes healing rolls too)",
+                        "title": "Avrae Tips :bulb:"
+                    }
+                ],
+                "onFalse": []
+            },
+            {
+                "type": "condition",
+                "condition": "choice in \"damage\"",
+                "onTrue": [
+                    {
+                        "type": "target",
+                        "target": "all",
+                        "effects": [
+                            {
+                                "type": "ieffect2",
+                                "name": "Stone Giant Strength (Potion)",
                                 "duration": "600",
                                 "desc": "Your strength becomes 23 if it is lower without this effect.",
                                 "effects": {

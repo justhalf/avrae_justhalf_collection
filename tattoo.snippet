@@ -8,25 +8,45 @@ ch = character()
 
 # Find matching spell (to get the level)
 spell_list = load_json(get_gvar("d5119227-1b2e-449f-958d-761d3e56b0a8")).spells
+tat_list = set(get_gvar('404d75f9-8773-4738-8e3f-2fe6f016bbf2').strip().split('\n'))
 matches = [x for x in spell_list if spell_name.lower()==x.name.lower()]
 spell = None
 if matches:
     spell = matches[0]
 else:
     matches = [x for x in spell_list if spell_name.lower() in x.name.lower()]
+matches = [x for x in matches if x.name in tat_list]
 if len(matches) > 1:
+    spell = matches[0]
     fs.append(f'**__Multiple spell matches__**: Unable to automatically determine the spell\'s level, assuming level 0-2.')
 elif len(matches) == 1:
     spell = matches[0]
 else:
     fs.append(f'**__No spell matches__**: Unable to automatically determine the spell\'s level, assuming level 0-2.')
+spell_name = spell.name if spell else spell_name
 spell_level = spell.level if spell else 2
+if spell_level > 0:
+    spell_level_s = f'{spell_level}{["st", "nd", "rd", "th"][min(spell_level,4)-1]} level'
+else:
+    spell_level_s = 'Cantrip'
 dc = ([13, 13, 13, 15, 15, 17, 17, 18, 18, 19])[spell_level]
-mod = dc-8-ch.stats.prof_bonus
-fs.insert(0, (f'You cast this spell without material components from a Spellwrought Tattoo.\n'
-              f'**Spell Level**: {spell_level if spell_level else "Cantrip"}\n'
-              f'**DC**: {dc}\n'
-              f'**Attack Bonus**: {dc-8}'))
+spell_mod = ([3, 3, 3, 4, 4, 5, 5, 5, 5, 5])[spell_level]
+if not spell or spell.get('useMod', False):
+    # Spell uses spellcasting ability modifier directly, no change
+    fs.insert(0, (f'You cast this spell without material components from a Spellwrought Tattoo.\n'
+                  f'Spell Level: {spell_level_s}\n'
+                  f'Save DC: {dc} [fixed]\n'
+                  f'Ability modifier: {spell_mod:+d} [fixed]'
+                  ))
+else:
+    # Spell uses SAB, which is calculated as spell_mod+proficiencyBonus by !cast
+    # So we pre-subtract prof bonus to the mod so that the SAB is correct
+    spell_mod = dc-8-proficiencyBonus
+    fs.insert(0, (f'You cast this spell without material components from a Spellwrought Tattoo.\n'
+                  f'Spell Level: {spell_level_s}\n'
+                  f'Save DC: {dc} [fixed]\n'
+                  f'Spell attack bonus: {spell_mod+proficiencyBonus:+d} [fixed]'
+                  ))
 
 # Find matching CC
 matches = [cc.name for cc in ch.consumables if f'{spell_name.lower()} tattoo' == cc.name.lower()]
@@ -47,5 +67,5 @@ elif len(matches) == 1:
 else:
     fs.append(f'**__No CC matches__**: Unable to automatically reduce CC.')
 fs_s = '\n\n'.join(fs)
-return f'-f "Spellwrought Tattoo|{fs_s}" -dc {dc} -mod {mod}'
+return f'-f "Spellwrought Tattoo|{fs_s}" -dc {dc} -cdc {dc} -mod {spell_mod}'
 </drac2>

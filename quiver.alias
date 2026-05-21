@@ -16,7 +16,7 @@ try:
     quiver_config = load_json(ch.get_cvar('quiverConfig', '{}'))
 except:
     quiver_config = {}
-if not quiver_config or 'arrow_types' not in quiver_config:
+if 'arrow_types' not in quiver_config:
     quiver_config['arrow_types'] = {}
 
 def disp_cols(vals, n=3, title='', as_obj=False):
@@ -280,7 +280,7 @@ if subc == 'setup':
         for a in alias:
             alias_map[a] = arrow_type
             alias_map[a.lower()] = arrow_type
-        arrow_types[arrow_type] = arrow
+        arrow_types[arrow_type] = {k:v for k,v in arrow.items() if k in ['short', 'alias', 'disp', 'track']}
         setup_arrows.append(arrow_type)
 
         # Creating CCs
@@ -538,7 +538,7 @@ if subc == 'add':
             chg = f'+{amount}' if amount>0 else f'{amount}'
             changelog.append(chg_s(cc_name, prev_amt, curr_amt, chg))
         else:
-            warns.append('* Not modified, does not exist: {cc_name}')
+            warns.append(f'* Not modified, does not exist: {cc_name}')
     changelog_s = '\n'.join(changelog)
     return jh.embed(
         title=f'{ch.name} adds arrows to their quiver! \u2705',
@@ -604,9 +604,9 @@ if subc == 'move':
                               f'{chg_s(tcc_name, prev_tamt, curr_tamt, t_chg)}'))
         else:
             if not ch.cc_exists(scc_name):
-                warns.append('* Not modified, does not exist: {scc_name}')
+                warns.append(f'* Not modified, does not exist: {scc_name}')
             if not ch.cc_exists(tcc_name):
-                warns.append('* Not modified, does not exist: {tcc_name}')
+                warns.append(f'* Not modified, does not exist: {tcc_name}')
     changelog_s = '\n'.join(changelog)
     changelog_s = f'Here are the changes:\n{changelog_s}'
     return jh.embed(

@@ -76,6 +76,7 @@ candies = {
                                      {
                                          'type': 'ieffect2',
                                          'name': 'Grappled (Sticky Caramel)',
+                                         'duration': 10,
                                          'tick_on_caster': True,
                                          'buttons': [
                                              {
@@ -207,6 +208,9 @@ if len(args) and args[0] == 'list':
             f'{" ".join(fs)} -footer "{footer[0]}"')
 if combat():
     default_combatant = combat().current
+    if not default_combatant:
+        return (f'embed -title "Init created but combat has not been started yet!" -desc "Please start the combat '
+                f'by running `!i n`" -footer "{footer[0]}"')
     if default_combatant.type == 'group':
         default_combatant = default_combatant.combatants[0]
     targets = [(t, combat().get_combatant(t.split('|')[0])) for t in argparse(args).get('t',[default_combatant.name])]

@@ -128,10 +128,10 @@ def leap_extra_days(calendar=None):
     result = sum(days_in_month_leap)-sum(days_in_month_norm)
     return result
 
-def today(fmt='%d %B %Y', calendar=None):
+def today(fmt='%d %B %Y', timezone=None, calendar=None):
     # fmt = '%Y-%m-%d'
     # fmt = '%d %B %Y'
-    date_obj = to_date(calendar=calendar)
+    date_obj = to_date(timezone=timezone, calendar=calendar)
     repdict = {'%Y':f'{date_obj["year"]}',
                '%m':f'{date_obj["month"]:02d}',
                '%d':f'{date_obj["day"]:02d}',
@@ -142,10 +142,10 @@ def today(fmt='%d %B %Y', calendar=None):
         fmt = fmt.replace(k, v)
     return fmt
 
-def now(fmt='%H:%M:%S', calendar=None):
+def now(fmt='%H:%M:%S', timezone=None, calendar=None):
     # fmt = '%H:%M:%S' -> 20:04:03
     # fmt = '%I:%m:%s %p' -> 08:04:03 PM
-    date_obj = to_date(calendar=calendar)
+    date_obj = to_date(timezone=timezone, calendar=calendar)
     repdict = {'%H':f'{date_obj["hour"]:02d}',
                '%M':f'{date_obj["minute"]:02d}',
                '%S':f'{date_obj["second"]:02d}',
@@ -192,7 +192,7 @@ def to_date(s_time=None, timezone=None, calendar=None):
     extra_days = leap_extra_days(calendar)
     while True:
         is_leap = is_leap_year(year, calendar)
-        if day_count < year_length + extra_days:
+        if day_count < year_length + extra_days*is_leap:
             break
         if is_leap:
             day_count -= year_length + extra_days
@@ -251,6 +251,8 @@ def to_date(s_time=None, timezone=None, calendar=None):
             }
 
 def to_epoch(date, timezone=None, calendar=None):
+    """Convert date object into Unix epoch
+    """
     if calendar is None:
         calendar = DEFAULT_CALENDAR
     if timezone is None:
@@ -292,5 +294,16 @@ def to_epoch(date, timezone=None, calendar=None):
     return s_time
 
 def to_discord(s_time, flag='RELATIVE'):
+    """Convert the epoch time into Discord timestamp format.
+
+    The list of available flags are:
+        'SHORT': 't'
+        'LONG': 'T'
+        'DATE': 'd'
+        'DATE_LONG': 'D'
+        'SHORT_DATE_TIME': 'f'
+        'LONG_DATE_TIME': 'F'
+        'RELATIVE': 'R'
+    """
     flag = DISCORD_TIME_FLAGS[flag]
     return f'<t:{s_time}:{flag}>'

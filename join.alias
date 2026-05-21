@@ -19,6 +19,7 @@ if args:
     loc, size, color, token, height = (args[0].split('|')+['','','','',''])[:5]
     loc = loc.upper()
     size = size.upper()
+    args = args[1:]
 else:
     loc, size, color, token, height = '', '', '', '', ''
 SIZE_MAP = {'T':'T (Tiny)',
@@ -124,8 +125,9 @@ for join_cmd in join_cmds:
         if loc:
             phrase = join_cmd.get('phrase', '')
             join_cmd['phrase'] = (phrase + f'\n\n-# Placed at {loc}').strip('\n')
-        join_args = ' '.join(f'-{key} "{escape(value)}"' for key, value in join_cmd.items() if key != 'fn')
-        cmds.append(f'!i join {join_args}')
+        join_args = ' '.join(f'-{key} "{escape(value)}"' if value else key for key, value in join_cmd.items() if key != 'fn')
+        args_s = ' '.join(f'"{escape(arg)}"' for arg in args)
+        cmds.append(f'!i join {join_args} {args_s}')
         continue
     effects.append(join_cmd)
 if effects:

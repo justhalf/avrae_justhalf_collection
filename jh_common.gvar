@@ -53,6 +53,8 @@ LIB = {
     'dicelib': '32d70259-223e-4fe1-8303-dbaa8189e859',
     'sublib': '9f664e12-57e2-451b-9792-a733625b2e6b',
     'Roll': '4dd0faad-8520-41a9-a0e2-ed922557578d',
+    'argprompt': 'f3dfc147-7804-4ade-ac94-01038f706fc8',
+    'er_roll': 'f50b1db2-d37f-4629-82a1-49d194409c24',
     }
 
 DEF_ARGS = {
@@ -115,8 +117,37 @@ DEF_ARGS = {
         '-title': True,
         '-f': True,
         '-thumb': True,
-        }
+        },
+    'check': {
+        'adv': False,
+        'dis': False,
+        '-b': True,
+        '-dc': True,
+        '-mc': True,
+        '-rr': True,
+        '-phrase': True,
+        '-title': True,
+        '-f': True,
+        '-thumb': True,
+        '-h': False,
+        },
+    'save': {
+        'adv': False,
+        'dis': False,
+        '-b': True,
+        '-dc': True,
+        '-sb': True,
+        '-mc': True,
+        '-rr': True,
+        '-phrase': True,
+        '-title': True,
+        '-f': True,
+        '-thumb': True,
+        '-h': False,
+        },
     }
+
+HL = '~~`'+' '*69+'`~~'
 
 def setup(al_name=None, footer=None):
     """Sets up this alias library.
@@ -159,6 +190,7 @@ def embed(title=None, desc='', fields=[], timeout=0,
     ch = character()
     if title is None:
         title = f'{ch.name} uses the alias {C[AL_NAME]}'
+    if desc is None: desc = ''
     fields = [f for f in fields if f is not None]
     embed_out = {
         'title': title,
@@ -198,7 +230,7 @@ def ch_name(force_actual=False):
         return character().name
     return C[CH_NAME]
 
-def resolve_targets(targets, strict=False, include_groups=False):
+def resolve_targets(targets, strict=False, expand_groups=True, include_groups=True):
     """Resolves the target names into combatant objects.
     
     Returns three lists:
@@ -206,18 +238,21 @@ def resolve_targets(targets, strict=False, include_groups=False):
     2. Targets with ambiguous name (multiple matches)
     3. Targets with no matching combatant
     Each list will be in the form of (target_arg, combatant_list)
-    Total number of items across the three lists will equal total number of targets specified.
+    The total number of items across the three lists will equal total number of targets specified, unless expand_groups is True,
+    where there may be more than one combatant added for each target.
+    Groups will not be expanded in the ambiguous or no match cases.
 
     If not in combat, will return empty lists for all three
     If strict is True, will only consider exact match (default: False)
+    if expand_groups is True, will target all combatants in the group when targetting groups
+    Otherwise, it will only return the group as is.
     """
     uniq, mult, none = [], [], []
     co = combat()
     if not co:
         return uniq, mult, none
     combatants = co.combatants
-    if include_groups:
-        combatants += co.groups
+    if include_groups: combatants += co.groups
     for t_arg in targets:
         t, _ = (t_arg.split('|', maxsplit=1)+[None])[:2]
         matches = []
@@ -230,7 +265,11 @@ def resolve_targets(targets, strict=False, include_groups=False):
             if t.lower() in comb.name.lower():
                 matches.append(comb)
         if len(matches) == 1:
-            uniq.append((t_arg, matches))
+            if expand_groups and matches[0].type == 'group':
+                for gcomb in matches[0].combatants:
+                    uniq.append((t_arg, [gcomb]))
+            else:
+                uniq.append((t_arg, matches))
         elif len(matches) > 1:
             mult.append((t_arg, matches))
         else:
@@ -287,3 +326,46 @@ def take_args(args, keys={}):
             else:
                 key_args[k] = []
     return (key_args, args)
+
+def craft_dm(private_msg, public_msg='Private message sent via DM!'):
+    """Craft the command that can be used to send DM to the user
+    """
+    open_c = '<drac2'+'>'
+    clos_c = '</drac2'+'>'
+    private_msg = private_msg.replace('\n', '\n#')
+    public_msg = public_msg.replace("'", "\\'")
+    return f'''tembed {open_c}ー=err;return (\nー(# {private_msg}\n'(<- ignore this error)\\n{public_msg}', True)){clos_c} .'''
+
+def edit_distance(str1, str2, cost_add=1, cost_delete=1, cost_replace=1, cost_swap=1):
+    """Calculate the edit distance to edit str1 into str2
+    """
+    prev_arr = None
+    arr = [i*cost_delete for i in range(len(str1)+1)]
+    for idx2, c2 in enumerate(str2):
+        cur_arr = list(arr)
+        cur_arr[0] = arr[0]+cost_add
+        for idx1, c1 in enumerate(str1):
+            costs = [
+                    arr[idx1]+(cost_replace*(c1!=c2)), # Correct or replace
+                    arr[idx1+1]+cost_add, # Add from str2
+                    cur_arr[idx1]+cost_delete, # Delete from str1
+                    ]
+            if prev_arr and idx1 >= 1 and str2[idx2-1:idx2+1] == str1[idx1-1:idx1+1][::-1]:
+                    costs.append(prev_arr[idx1-1]+cost_swap) # Swap adjacent characters
+            cur_arr[idx1+1] = min(costs)
+        prev_arr = arr
+        arr = cur_arr
+    return arr[-1]
+
+def is_gvar(s):
+    """
+    Checks whether the given input is a gvar address
+    """
+    if typeof(s) != 'str': return False
+    if len(s) != 36: return False
+    comps = s.split('-')
+    if len(comps) != 5: return False
+    if set(s).difference(set('0123456789abcdef-')): return False
+    for idx, tlen in enumerate([8,4,4,4,12]):
+        if len(comps[idx]) != tlen: return False
+    return True
